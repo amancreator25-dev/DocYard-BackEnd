@@ -19,7 +19,6 @@ const likeSchema = new mongoose.Schema(
   }
 );
 
-// One user can like a document only once
 likeSchema.index(
   { user: 1, document: 1 },
   { unique: true }

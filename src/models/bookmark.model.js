@@ -19,7 +19,6 @@ const bookmarkSchema = new mongoose.Schema(
   }
 );
 
-// A user can bookmark a document only once
 bookmarkSchema.index(
   { user: 1, document: 1 },
   { unique: true }
