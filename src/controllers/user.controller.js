@@ -1,5 +1,7 @@
 import { User } from "../models/user.model.js";
 import jwt from "jsonwebtoken";
+import { Document } from "../models/document.model.js";
+
 
 // Generate Access + Refresh Tokens
 const generateTokens = async (userId) => {
@@ -383,6 +385,120 @@ const changePassword = async (req, res) => {
   }
 };
 
+// ======================================
+// UPDATE PROFILE
+// ======================================
+const updateProfile = async (req, res) => {
+  try {
+    const { fullname, username, bio, avatar } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check username availability
+    if (username && username !== user.username) {
+      const existingUser = await User.findOne({
+        username: username.toLowerCase(),
+        _id: { $ne: user._id },
+      });
+
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          message: "Username is already taken",
+        });
+      }
+
+      user.username = username.toLowerCase().trim();
+    }
+
+    // Update provided fields
+    if (fullname !== undefined) {
+      user.fullname = fullname.trim();
+    }
+
+    if (bio !== undefined) {
+      user.bio = bio.trim();
+    }
+
+    if (avatar !== undefined) {
+      user.avatar = avatar.trim();
+    }
+
+    await user.save();
+
+    const updatedUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update Profile Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while updating profile",
+      error: error.message,
+    });
+  }
+};
+
+
+// ======================================
+// GET USER PROFILE
+// ======================================
+const getUserProfile = async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    const user = await User.findOne({
+      username: username.toLowerCase(),
+    }).select(
+      "username fullname avatar bio role createdAt"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User profile not found",
+      });
+    }
+
+    // Get user's public documents
+    const documents = await Document.find({
+      createdBy: user._id,
+      visibility: "public",
+    })
+      .select(
+        "title description slug thumbnail category tags language views downloads createdAt"
+      )
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      user,
+      documents,
+    });
+  } catch (error) {
+    console.error("Get User Profile Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while fetching profile",
+      error: error.message,
+    });
+  }
+};
 
 export {
   registerUser,
@@ -391,4 +507,6 @@ export {
   refreshAccessToken,
   getCurrentUser,
   changePassword,
+  updateProfile,
+  getUserProfile
 };
