@@ -1,4 +1,6 @@
 import { Document } from "../models/document.model.js";
+import fs from "fs";
+import path from "path";
 
 // ======================================
 // CREATE DOCUMENT
@@ -10,15 +12,19 @@ const createDocument = async (req, res) => {
       description,
       author,
       slug,
-      fileUrl,
-      thumbnail,
-      fileType,
-      fileSize,
       category,
       tags,
       language,
       visibility,
     } = req.body;
+
+    // Check uploaded file
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Document file is required",
+      });
+    }
 
     // Required fields
     if (
@@ -26,11 +32,11 @@ const createDocument = async (req, res) => {
       !description ||
       !author ||
       !slug ||
-      !fileUrl ||
-      !fileType ||
-      !fileSize ||
       !category
     ) {
+      // Delete uploaded file if validation fails
+      fs.unlinkSync(req.file.path);
+
       return res.status(400).json({
         success: false,
         message: "Required document fields are missing",
@@ -38,31 +44,53 @@ const createDocument = async (req, res) => {
     }
 
     // Check slug
-    const existingDocument = await Document.findOne({ slug });
+    const existingDocument = await Document.findOne({
+      slug: slug.toLowerCase(),
+    });
 
     if (existingDocument) {
+      fs.unlinkSync(req.file.path);
+
       return res.status(409).json({
         success: false,
         message: "A document with this slug already exists",
       });
     }
 
+    // Determine file type
+    const extension = path
+      .extname(req.file.originalname)
+      .toLowerCase()
+      .replace(".", "");
+
     // Create document
     const document = await Document.create({
-      title,
-      description,
-      author,
-      slug,
-      fileUrl,
-      thumbnail: thumbnail || "",
-      fileType,
-      fileSize,
-      category,
-      tags: tags || [],
+      title: title.trim(),
+
+      description: description.trim(),
+
+      author: author.trim(),
+
+      slug: slug.trim().toLowerCase(),
+
+      fileUrl: `/uploads/documents/${req.file.filename}`,
+
+      fileType: extension,
+
+      fileSize: req.file.size,
+
+      category: category.trim(),
+
+      tags: tags
+        ? Array.isArray(tags)
+          ? tags
+          : tags.split(",").map((tag) => tag.trim().toLowerCase())
+        : [],
+
       language: language || "English",
+
       visibility: visibility || "public",
 
-      // Logged-in user
       createdBy: req.user._id,
     });
 
@@ -73,6 +101,11 @@ const createDocument = async (req, res) => {
     });
   } catch (error) {
     console.error("Create Document Error:", error);
+
+    // Delete uploaded file if database operation fails
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
 
     return res.status(500).json({
       success: false,
@@ -91,7 +124,10 @@ const getAllDocuments = async (req, res) => {
     const documents = await Document.find({
       visibility: "public",
     })
-      .populate("createdBy", "username fullname avatar")
+      .populate(
+        "createdBy",
+        "username fullname avatar"
+      )
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -118,8 +154,12 @@ const getDocumentBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
 
-    const document = await Document.findOne({ slug })
-      .populate("createdBy", "username fullname avatar");
+    const document = await Document.findOne({
+      slug: slug.toLowerCase(),
+    }).populate(
+      "createdBy",
+      "username fullname avatar"
+    );
 
     if (!document) {
       return res.status(404).json({
@@ -130,7 +170,6 @@ const getDocumentBySlug = async (req, res) => {
 
     // Private document
     if (document.visibility === "private") {
-      // User must be logged in
       if (!req.user) {
         return res.status(403).json({
           success: false,
@@ -138,20 +177,21 @@ const getDocumentBySlug = async (req, res) => {
         });
       }
 
-      // Only owner can access
       if (
         document.createdBy._id.toString() !==
         req.user._id.toString()
       ) {
         return res.status(403).json({
           success: false,
-          message: "You are not allowed to access this document",
+          message:
+            "You are not allowed to access this document",
         });
       }
     }
 
     // Increase view count
     document.views += 1;
+
     await document.save();
 
     return res.status(200).json({
@@ -163,7 +203,8 @@ const getDocumentBySlug = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while fetching document",
+      message:
+        "Something went wrong while fetching document",
       error: error.message,
     });
   }
@@ -185,11 +226,15 @@ const getMyDocuments = async (req, res) => {
       documents,
     });
   } catch (error) {
-    console.error("Get My Documents Error:", error);
+    console.error(
+      "Get My Documents Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while fetching your documents",
+      message:
+        "Something went wrong while fetching your documents",
       error: error.message,
     });
   }
@@ -203,9 +248,15 @@ const updateDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
 
-    const document = await Document.findById(documentId);
+    const document = await Document.findById(
+      documentId
+    );
 
     if (!document) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
       return res.status(404).json({
         success: false,
         message: "Document not found",
@@ -217,9 +268,14 @@ const updateDocument = async (req, res) => {
       document.createdBy.toString() !==
       req.user._id.toString()
     ) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
       return res.status(403).json({
         success: false,
-        message: "You are not allowed to update this document",
+        message:
+          "You are not allowed to update this document",
       });
     }
 
@@ -228,50 +284,61 @@ const updateDocument = async (req, res) => {
       description,
       author,
       slug,
-      thumbnail,
       category,
       tags,
       language,
       visibility,
     } = req.body;
 
-    // If slug is being changed, check uniqueness
+    // Check slug uniqueness
     if (slug && slug !== document.slug) {
-      const existingDocument = await Document.findOne({ slug });
+      const existingDocument = await Document.findOne({
+        slug: slug.toLowerCase(),
+        _id: { $ne: documentId },
+      });
 
       if (existingDocument) {
+        if (
+          req.file?.path &&
+          fs.existsSync(req.file.path)
+        ) {
+          fs.unlinkSync(req.file.path);
+        }
+
         return res.status(409).json({
           success: false,
           message: "This slug is already being used",
         });
       }
 
-      document.slug = slug;
+      document.slug = slug.trim().toLowerCase();
     }
 
-    // Update only provided fields
+    // Update fields
     if (title !== undefined) {
-      document.title = title;
+      document.title = title.trim();
     }
 
     if (description !== undefined) {
-      document.description = description;
+      document.description = description.trim();
     }
 
     if (author !== undefined) {
-      document.author = author;
-    }
-
-    if (thumbnail !== undefined) {
-      document.thumbnail = thumbnail;
+      document.author = author.trim();
     }
 
     if (category !== undefined) {
-      document.category = category;
+      document.category = category.trim();
     }
 
     if (tags !== undefined) {
-      document.tags = tags;
+      document.tags = Array.isArray(tags)
+        ? tags
+        : tags
+            .split(",")
+            .map((tag) =>
+              tag.trim().toLowerCase()
+            );
     }
 
     if (language !== undefined) {
@@ -282,6 +349,38 @@ const updateDocument = async (req, res) => {
       document.visibility = visibility;
     }
 
+    // --------------------------------------
+    // Replace uploaded file
+    // --------------------------------------
+
+    if (req.file) {
+      const extension = path
+        .extname(req.file.originalname)
+        .toLowerCase()
+        .replace(".", "");
+
+      const oldFileUrl = document.fileUrl;
+
+      document.fileUrl =
+        `/uploads/documents/${req.file.filename}`;
+
+      document.fileType = extension;
+
+      document.fileSize = req.file.size;
+
+      // Delete old file
+      if (oldFileUrl) {
+        const oldFilePath = path.join(
+          process.cwd(),
+          oldFileUrl
+        );
+
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+    }
+
     await document.save();
 
     return res.status(200).json({
@@ -290,11 +389,22 @@ const updateDocument = async (req, res) => {
       document,
     });
   } catch (error) {
-    console.error("Update Document Error:", error);
+    console.error(
+      "Update Document Error:",
+      error
+    );
+
+    if (
+      req.file?.path &&
+      fs.existsSync(req.file.path)
+    ) {
+      fs.unlinkSync(req.file.path);
+    }
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while updating document",
+      message:
+        "Something went wrong while updating document",
       error: error.message,
     });
   }
@@ -308,7 +418,9 @@ const deleteDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
 
-    const document = await Document.findById(documentId);
+    const document = await Document.findById(
+      documentId
+    );
 
     if (!document) {
       return res.status(404).json({
@@ -324,22 +436,41 @@ const deleteDocument = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "You are not allowed to delete this document",
+        message:
+          "You are not allowed to delete this document",
       });
     }
 
-    await Document.findByIdAndDelete(documentId);
+    // Delete physical file
+    if (document.fileUrl) {
+      const filePath = path.join(
+        process.cwd(),
+        document.fileUrl
+      );
+
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    await Document.findByIdAndDelete(
+      documentId
+    );
 
     return res.status(200).json({
       success: true,
       message: "Document deleted successfully",
     });
   } catch (error) {
-    console.error("Delete Document Error:", error);
+    console.error(
+      "Delete Document Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while deleting document",
+      message:
+        "Something went wrong while deleting document",
       error: error.message,
     });
   }
@@ -353,7 +484,9 @@ const downloadDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
 
-    const document = await Document.findById(documentId);
+    const document = await Document.findById(
+      documentId
+    );
 
     if (!document) {
       return res.status(404).json({
@@ -377,13 +510,15 @@ const downloadDocument = async (req, res) => {
       ) {
         return res.status(403).json({
           success: false,
-          message: "You are not allowed to download this document",
+          message:
+            "You are not allowed to download this document",
         });
       }
     }
 
-    // Increase download count
+    // Increase downloads
     document.downloads += 1;
+
     await document.save();
 
     return res.status(200).json({
@@ -392,20 +527,21 @@ const downloadDocument = async (req, res) => {
       fileUrl: document.fileUrl,
     });
   } catch (error) {
-    console.error("Download Document Error:", error);
+    console.error(
+      "Download Document Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while downloading document",
+      message:
+        "Something went wrong while downloading document",
       error: error.message,
     });
   }
 };
 
 
-// ======================================
-// EXPORT
-// ======================================
 export {
   createDocument,
   getAllDocuments,
