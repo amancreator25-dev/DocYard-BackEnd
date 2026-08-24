@@ -5,11 +5,16 @@ import { Bookmark } from "../models/bookmark.model.js";
 import { Comment } from "../models/comment.model.js";
 import { Contact } from "../models/contact.model.js";
 
-// ======================================
-// GET ADMIN DASHBOARD
-// ======================================
-const getAdminDashboard = async (req, res) => {
-  try {
+import {
+  deleteFromCloudinary,
+} from "../config/cloudinary.js";
+
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const getAdminDashboard = asyncHandler(
+  async (req, res) => {
     const [
       totalUsers,
       totalDocuments,
@@ -21,196 +26,177 @@ const getAdminDashboard = async (req, res) => {
       privateDocuments,
     ] = await Promise.all([
       User.countDocuments(),
-
       Document.countDocuments(),
-
       Like.countDocuments(),
-
       Bookmark.countDocuments(),
-
       Comment.countDocuments(),
-
       Contact.countDocuments(),
-
       Document.countDocuments({
         visibility: "public",
       }),
-
       Document.countDocuments({
         visibility: "private",
       }),
     ]);
 
-    return res.status(200).json({
-      success: true,
-      statistics: {
-        totalUsers,
-        totalDocuments,
-        totalLikes,
-        totalBookmarks,
-        totalComments,
-        totalContacts,
-        publicDocuments,
-        privateDocuments,
-      },
-    });
-  } catch (error) {
-    console.error("Admin Dashboard Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching dashboard",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          statistics: {
+            totalUsers,
+            totalDocuments,
+            totalLikes,
+            totalBookmarks,
+            totalComments,
+            totalContacts,
+            publicDocuments,
+            privateDocuments,
+          },
+        },
+        "Admin dashboard fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET ALL USERS
-// ======================================
-const getAllUsers = async (req, res) => {
-  try {
+const getAllUsers = asyncHandler(
+  async (req, res) => {
     const users = await User.find()
       .select(
         "username fullname email avatar bio role isVerified createdAt lastLogin"
       )
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      count: users.length,
-      users,
-    });
-  } catch (error) {
-    console.error("Get All Users Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching users",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: users.length,
+          users,
+        },
+        "Users fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET USER BY ID
-// ======================================
-const getUserById = async (req, res) => {
-  try {
+const getUserById = asyncHandler(
+  async (req, res) => {
     const { userId } = req.params;
 
-    const user = await User.findById(userId)
-      .select(
-        "username fullname email avatar bio role isVerified createdAt lastLogin"
-      );
+    const user = await User.findById(
+      userId
+    ).select(
+      "username fullname email avatar bio role isVerified createdAt lastLogin"
+    );
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      throw new ApiError(
+        404,
+        "User not found"
+      );
     }
 
-    return res.status(200).json({
-      success: true,
-      user,
-    });
-  } catch (error) {
-    console.error("Get User Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching user",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        user,
+        "User fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// UPDATE USER ROLE
-// ======================================
-const updateUserRole = async (req, res) => {
-  try {
+const updateUserRole = asyncHandler(
+  async (req, res) => {
     const { userId } = req.params;
     const { role } = req.body;
 
     if (!["user", "admin"].includes(role)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid role",
-      });
+      throw new ApiError(
+        400,
+        "Invalid role"
+      );
     }
 
-    // Prevent admin from changing their own role
-    if (req.user._id.toString() === userId) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot change your own role",
-      });
+    if (
+      req.user._id.toString() === userId
+    ) {
+      throw new ApiError(
+        400,
+        "You cannot change your own role"
+      );
     }
 
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      throw new ApiError(
+        404,
+        "User not found"
+      );
     }
 
     user.role = role;
 
     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "User role updated successfully",
-      user: {
-        _id: user._id,
-        username: user.username,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    console.error("Update User Role Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while updating user role",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          _id: user._id,
+          username: user.username,
+          role: user.role,
+        },
+        "User role updated successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// DELETE USER
-// ======================================
-const deleteUser = async (req, res) => {
-  try {
+const deleteUser = asyncHandler(
+  async (req, res) => {
     const { userId } = req.params;
 
-    // Prevent deleting yourself
-    if (req.user._id.toString() === userId) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot delete your own account",
-      });
+    if (
+      req.user._id.toString() === userId
+    ) {
+      throw new ApiError(
+        400,
+        "You cannot delete your own account"
+      );
     }
 
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      throw new ApiError(
+        404,
+        "User not found"
+      );
     }
 
-    // Delete user's related data
+    const documents = await Document.find({
+      createdBy: userId,
+    }).select("publicId");
+
+    const cloudinaryDeletePromises =
+      documents
+        .filter(
+          (document) => document.publicId
+        )
+        .map((document) =>
+          deleteFromCloudinary(
+            document.publicId
+          )
+        );
+
+    await Promise.all(
+      cloudinaryDeletePromises
+    );
+
     await Promise.all([
       Document.deleteMany({
         createdBy: userId,
@@ -235,107 +221,100 @@ const deleteUser = async (req, res) => {
       User.findByIdAndDelete(userId),
     ]);
 
-    return res.status(200).json({
-      success: true,
-      message: "User and related data deleted successfully",
-    });
-  } catch (error) {
-    console.error("Delete User Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while deleting user",
-      error: error.message,
-    });
-  }
-};
-
-
-// ======================================
-// GET ALL DOCUMENTS
-// ======================================
-const getAllDocumentsAdmin = async (req, res) => {
-  try {
-    const documents = await Document.find()
-      .populate(
-        "createdBy",
-        "username fullname email"
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        null,
+        "User and related data deleted successfully"
       )
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      count: documents.length,
-      documents,
-    });
-  } catch (error) {
-    console.error("Admin Get Documents Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching documents",
-      error: error.message,
-    });
+    );
   }
-};
+);
 
+const getAllDocumentsAdmin =
+  asyncHandler(
+    async (req, res) => {
+      const documents =
+        await Document.find()
+          .populate(
+            "createdBy",
+            "username fullname email"
+          )
+          .sort({ createdAt: -1 });
 
-// ======================================
-// DELETE DOCUMENT
-// ======================================
-const adminDeleteDocument = async (req, res) => {
-  try {
-    const { documentId } = req.params;
-
-    const document = await Document.findById(documentId);
-
-    if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          {
+            count: documents.length,
+            documents,
+          },
+          "Documents fetched successfully"
+        )
+      );
     }
+  );
 
-    // Delete related data
-    await Promise.all([
-      Like.deleteMany({
-        document: documentId,
-      }),
+const adminDeleteDocument =
+  asyncHandler(
+    async (req, res) => {
+      const { documentId } =
+        req.params;
 
-      Bookmark.deleteMany({
-        document: documentId,
-      }),
+      const document =
+        await Document.findById(
+          documentId
+        );
 
-      Comment.deleteMany({
-        document: documentId,
-      }),
+      if (!document) {
+        throw new ApiError(
+          404,
+          "Document not found"
+        );
+      }
 
-      Document.findByIdAndDelete(documentId),
-    ]);
+      if (document.publicId) {
+        await deleteFromCloudinary(
+          document.publicId
+        );
+      }
 
-    return res.status(200).json({
-      success: true,
-      message: "Document deleted successfully by admin",
-    });
-  } catch (error) {
-    console.error("Admin Delete Document Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while deleting document",
-      error: error.message,
-    });
-  }
-};
-
-
-// ======================================
-// GET CONTACT STATISTICS
-// ======================================
-const getContactStatistics = async (req, res) => {
-  try {
-    const [pending, inProgress, resolved] =
       await Promise.all([
+        Like.deleteMany({
+          document: documentId,
+        }),
+
+        Bookmark.deleteMany({
+          document: documentId,
+        }),
+
+        Comment.deleteMany({
+          document: documentId,
+        }),
+
+        Document.findByIdAndDelete(
+          documentId
+        ),
+      ]);
+
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          null,
+          "Document deleted successfully by admin"
+        )
+      );
+    }
+  );
+
+const getContactStatistics =
+  asyncHandler(
+    async (req, res) => {
+      const [
+        pending,
+        inProgress,
+        resolved,
+      ] = await Promise.all([
         Contact.countDocuments({
           status: "pending",
         }),
@@ -349,30 +328,25 @@ const getContactStatistics = async (req, res) => {
         }),
       ]);
 
-    return res.status(200).json({
-      success: true,
-      statistics: {
-        pending,
-        inProgress,
-        resolved,
-        total: pending + inProgress + resolved,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "Contact Statistics Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while fetching contact statistics",
-      error: error.message,
-    });
-  }
-};
-
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          {
+            statistics: {
+              pending,
+              inProgress,
+              resolved,
+              total:
+                pending +
+                inProgress +
+                resolved,
+            },
+          },
+          "Contact statistics fetched successfully"
+        )
+      );
+    }
+  );
 
 export {
   getAdminDashboard,

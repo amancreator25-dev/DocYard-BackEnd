@@ -10,8 +10,12 @@ import {
   deleteLocalFile,
 } from "../utils/file.utils.js";
 
-const createDocument = async (req, res) => {
-  try {
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const createDocument = asyncHandler(
+  async (req, res) => {
     const {
       title,
       description,
@@ -24,10 +28,10 @@ const createDocument = async (req, res) => {
     } = req.body;
 
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "Document file is required",
-      });
+      throw new ApiError(
+        400,
+        "Document file is required"
+      );
     }
 
     if (
@@ -39,10 +43,10 @@ const createDocument = async (req, res) => {
     ) {
       deleteLocalFile(req.file.path);
 
-      return res.status(400).json({
-        success: false,
-        message: "Required document fields are missing",
-      });
+      throw new ApiError(
+        400,
+        "Required document fields are missing"
+      );
     }
 
     const existingDocument =
@@ -53,39 +57,41 @@ const createDocument = async (req, res) => {
     if (existingDocument) {
       deleteLocalFile(req.file.path);
 
-      return res.status(409).json({
-        success: false,
-        message:
-          "A document with this slug already exists",
-      });
+      throw new ApiError(
+        409,
+        "A document with this slug already exists"
+      );
     }
+
+    let cloudinaryResult;
+
+    try {
+      cloudinaryResult =
+        await uploadToCloudinary(
+          req.file.path,
+          "docyard/documents"
+        );
+    } catch (error) {
+      deleteLocalFile(req.file.path);
+      throw error;
+    }
+
+    deleteLocalFile(req.file.path);
 
     const extension = getFileExtension(
       req.file.originalname
     );
-
-    const cloudinaryResult =
-      await uploadToCloudinary(
-        req.file.path,
-        "docyard/documents"
-      );
-
-    deleteLocalFile(req.file.path);
 
     const document = await Document.create({
       title: title.trim(),
       description: description.trim(),
       author: author.trim(),
       slug: slug.trim().toLowerCase(),
-
       fileUrl: cloudinaryResult.secure_url,
       publicId: cloudinaryResult.public_id,
-
       fileType: extension,
       fileSize: req.file.size,
-
       category: category.trim(),
-
       tags: tags
         ? Array.isArray(tags)
           ? tags
@@ -95,36 +101,23 @@ const createDocument = async (req, res) => {
                 tag.trim().toLowerCase()
               )
         : [],
-
       language: language || "English",
       visibility: visibility || "public",
       createdBy: req.user._id,
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Document created successfully",
-      document,
-    });
-  } catch (error) {
-    console.error(
-      "Create Document Error:",
-      error
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        document,
+        "Document created successfully"
+      )
     );
-
-    deleteLocalFile(req.file?.path);
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while creating document",
-      error: error.message,
-    });
   }
-};
+);
 
-const getAllDocuments = async (req, res) => {
-  try {
+const getAllDocuments = asyncHandler(
+  async (req, res) => {
     const documents = await Document.find({
       visibility: "public",
     })
@@ -134,28 +127,21 @@ const getAllDocuments = async (req, res) => {
       )
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      count: documents.length,
-      documents,
-    });
-  } catch (error) {
-    console.error(
-      "Get Documents Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: documents.length,
+          documents,
+        },
+        "Documents fetched successfully"
+      )
     );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while fetching documents",
-      error: error.message,
-    });
   }
-};
+);
 
-const getDocumentBySlug = async (req, res) => {
-  try {
+const getDocumentBySlug = asyncHandler(
+  async (req, res) => {
     const { slug } = req.params;
 
     const document = await Document.findOne({
@@ -166,29 +152,28 @@ const getDocumentBySlug = async (req, res) => {
     );
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
     if (document.visibility === "private") {
       if (!req.user) {
-        return res.status(403).json({
-          success: false,
-          message: "This document is private",
-        });
+        throw new ApiError(
+          403,
+          "This document is private"
+        );
       }
 
       if (
         document.createdBy._id.toString() !==
         req.user._id.toString()
       ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "You are not allowed to access this document",
-        });
+        throw new ApiError(
+          403,
+          "You are not allowed to access this document"
+        );
       }
     }
 
@@ -196,53 +181,37 @@ const getDocumentBySlug = async (req, res) => {
 
     await document.save();
 
-    return res.status(200).json({
-      success: true,
-      document,
-    });
-  } catch (error) {
-    console.error(
-      "Get Document Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        document,
+        "Document fetched successfully"
+      )
     );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while fetching document",
-      error: error.message,
-    });
   }
-};
+);
 
-const getMyDocuments = async (req, res) => {
-  try {
+const getMyDocuments = asyncHandler(
+  async (req, res) => {
     const documents = await Document.find({
       createdBy: req.user._id,
     }).sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      count: documents.length,
-      documents,
-    });
-  } catch (error) {
-    console.error(
-      "Get My Documents Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: documents.length,
+          documents,
+        },
+        "Your documents fetched successfully"
+      )
     );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while fetching your documents",
-      error: error.message,
-    });
   }
-};
+);
 
-const updateDocument = async (req, res) => {
-  try {
+const updateDocument = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
 
     const document = await Document.findById(
@@ -252,10 +221,10 @@ const updateDocument = async (req, res) => {
     if (!document) {
       deleteLocalFile(req.file?.path);
 
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
     if (
@@ -264,11 +233,10 @@ const updateDocument = async (req, res) => {
     ) {
       deleteLocalFile(req.file?.path);
 
-      return res.status(403).json({
-        success: false,
-        message:
-          "You are not allowed to update this document",
-      });
+      throw new ApiError(
+        403,
+        "You are not allowed to update this document"
+      );
     }
 
     const {
@@ -292,16 +260,14 @@ const updateDocument = async (req, res) => {
       if (existingDocument) {
         deleteLocalFile(req.file?.path);
 
-        return res.status(409).json({
-          success: false,
-          message:
-            "This slug is already being used",
-        });
+        throw new ApiError(
+          409,
+          "This slug is already being used"
+        );
       }
 
-      document.slug = slug
-        .trim()
-        .toLowerCase();
+      document.slug =
+        slug.trim().toLowerCase();
     }
 
     if (title !== undefined) {
@@ -340,15 +306,18 @@ const updateDocument = async (req, res) => {
     }
 
     if (req.file) {
-      const extension = getFileExtension(
-        req.file.originalname
-      );
+      let cloudinaryResult;
 
-      const cloudinaryResult =
-        await uploadToCloudinary(
-          req.file.path,
-          "docyard/documents"
-        );
+      try {
+        cloudinaryResult =
+          await uploadToCloudinary(
+            req.file.path,
+            "docyard/documents"
+          );
+      } catch (error) {
+        deleteLocalFile(req.file.path);
+        throw error;
+      }
 
       deleteLocalFile(req.file.path);
 
@@ -364,36 +333,28 @@ const updateDocument = async (req, res) => {
       document.publicId =
         cloudinaryResult.public_id;
 
-      document.fileType = extension;
+      document.fileType =
+        getFileExtension(
+          req.file.originalname
+        );
+
       document.fileSize = req.file.size;
     }
 
     await document.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "Document updated successfully",
-      document,
-    });
-  } catch (error) {
-    console.error(
-      "Update Document Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        document,
+        "Document updated successfully"
+      )
     );
-
-    deleteLocalFile(req.file?.path);
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while updating document",
-      error: error.message,
-    });
   }
-};
+);
 
-const deleteDocument = async (req, res) => {
-  try {
+const deleteDocument = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
 
     const document = await Document.findById(
@@ -401,21 +362,20 @@ const deleteDocument = async (req, res) => {
     );
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
     if (
       document.createdBy.toString() !==
       req.user._id.toString()
     ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "You are not allowed to delete this document",
-      });
+      throw new ApiError(
+        403,
+        "You are not allowed to delete this document"
+      );
     }
 
     if (document.publicId) {
@@ -428,27 +388,18 @@ const deleteDocument = async (req, res) => {
       documentId
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Document deleted successfully",
-    });
-  } catch (error) {
-    console.error(
-      "Delete Document Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        null,
+        "Document deleted successfully"
+      )
     );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while deleting document",
-      error: error.message,
-    });
   }
-};
+);
 
-const downloadDocument = async (req, res) => {
-  try {
+const downloadDocument = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
 
     const document = await Document.findById(
@@ -456,29 +407,28 @@ const downloadDocument = async (req, res) => {
     );
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
     if (document.visibility === "private") {
       if (!req.user) {
-        return res.status(403).json({
-          success: false,
-          message: "This document is private",
-        });
+        throw new ApiError(
+          403,
+          "This document is private"
+        );
       }
 
       if (
         document.createdBy.toString() !==
         req.user._id.toString()
       ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "You are not allowed to download this document",
-        });
+        throw new ApiError(
+          403,
+          "You are not allowed to download this document"
+        );
       }
     }
 
@@ -486,25 +436,17 @@ const downloadDocument = async (req, res) => {
 
     await document.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "Document download started",
-      fileUrl: document.fileUrl,
-    });
-  } catch (error) {
-    console.error(
-      "Download Document Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          fileUrl: document.fileUrl,
+        },
+        "Document download started"
+      )
     );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while downloading document",
-      error: error.message,
-    });
   }
-};
+);
 
 export {
   createDocument,
