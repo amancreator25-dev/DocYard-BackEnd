@@ -6,9 +6,7 @@ import {
 
 import fs from "fs";
 import path from "path";
-// ======================================
-// CREATE DOCUMENT
-// ======================================
+
 const createDocument = async (req, res) => {
   try {
     const {
@@ -22,7 +20,6 @@ const createDocument = async (req, res) => {
       visibility,
     } = req.body;
 
-    // Check uploaded file
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -30,7 +27,6 @@ const createDocument = async (req, res) => {
       });
     }
 
-    // Required fields
     if (
       !title ||
       !description ||
@@ -51,7 +47,6 @@ const createDocument = async (req, res) => {
       });
     }
 
-    // Check slug
     const existingDocument =
       await Document.findOne({
         slug: slug.toLowerCase(),
@@ -72,20 +67,17 @@ const createDocument = async (req, res) => {
       });
     }
 
-    // Determine file type
     const extension = path
       .extname(req.file.originalname)
       .toLowerCase()
       .replace(".", "");
 
-    // Upload to Cloudinary
     const cloudinaryResult =
       await uploadToCloudinary(
         req.file.path,
         "docyard/documents"
       );
 
-    // Remove temporary local file
     if (
       req.file.path &&
       fs.existsSync(req.file.path)
@@ -93,7 +85,6 @@ const createDocument = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
-    // Create document
     const document = await Document.create({
       title: title.trim(),
 
@@ -103,10 +94,8 @@ const createDocument = async (req, res) => {
 
       slug: slug.trim().toLowerCase(),
 
-      // Cloudinary URL
       fileUrl: cloudinaryResult.secure_url,
 
-      // Cloudinary public ID
       publicId: cloudinaryResult.public_id,
 
       fileType: extension,
@@ -143,7 +132,6 @@ const createDocument = async (req, res) => {
       error
     );
 
-    // Remove temporary file if upload/database fails
     if (
       req.file?.path &&
       fs.existsSync(req.file.path)
@@ -161,9 +149,7 @@ const createDocument = async (req, res) => {
 };
 
 
-// ======================================
-// GET ALL PUBLIC DOCUMENTS
-// ======================================
+
 const getAllDocuments = async (req, res) => {
   try {
     const documents = await Document.find({
@@ -192,9 +178,6 @@ const getAllDocuments = async (req, res) => {
 };
 
 
-// ======================================
-// GET DOCUMENT BY SLUG
-// ======================================
 const getDocumentBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
@@ -213,7 +196,6 @@ const getDocumentBySlug = async (req, res) => {
       });
     }
 
-    // Private document
     if (document.visibility === "private") {
       if (!req.user) {
         return res.status(403).json({
@@ -234,7 +216,7 @@ const getDocumentBySlug = async (req, res) => {
       }
     }
 
-    // Increase view count
+
     document.views += 1;
 
     await document.save();
@@ -256,9 +238,6 @@ const getDocumentBySlug = async (req, res) => {
 };
 
 
-// ======================================
-// GET MY DOCUMENTS
-// ======================================
 const getMyDocuments = async (req, res) => {
   try {
     const documents = await Document.find({
@@ -286,9 +265,6 @@ const getMyDocuments = async (req, res) => {
 };
 
 
-// ======================================
-// UPDATE DOCUMENT
-// ======================================
 const updateDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -308,7 +284,7 @@ const updateDocument = async (req, res) => {
       });
     }
 
-    // Check ownership
+
     if (
       document.createdBy.toString() !==
       req.user._id.toString()
@@ -335,7 +311,7 @@ const updateDocument = async (req, res) => {
       visibility,
     } = req.body;
 
-    // Check slug uniqueness
+
     if (slug && slug !== document.slug) {
       const existingDocument = await Document.findOne({
         slug: slug.toLowerCase(),
