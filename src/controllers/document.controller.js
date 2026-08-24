@@ -1,11 +1,14 @@
 import { Document } from "../models/document.model.js";
+
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
 } from "../config/cloudinary.js";
 
-import fs from "fs";
-import path from "path";
+import {
+  getFileExtension,
+  deleteLocalFile,
+} from "../utils/file.utils.js";
 
 const createDocument = async (req, res) => {
   try {
@@ -34,12 +37,7 @@ const createDocument = async (req, res) => {
       !slug ||
       !category
     ) {
-      if (
-        req.file.path &&
-        fs.existsSync(req.file.path)
-      ) {
-        fs.unlinkSync(req.file.path);
-      }
+      deleteLocalFile(req.file.path);
 
       return res.status(400).json({
         success: false,
@@ -53,12 +51,7 @@ const createDocument = async (req, res) => {
       });
 
     if (existingDocument) {
-      if (
-        req.file.path &&
-        fs.existsSync(req.file.path)
-      ) {
-        fs.unlinkSync(req.file.path);
-      }
+      deleteLocalFile(req.file.path);
 
       return res.status(409).json({
         success: false,
@@ -67,10 +60,9 @@ const createDocument = async (req, res) => {
       });
     }
 
-    const extension = path
-      .extname(req.file.originalname)
-      .toLowerCase()
-      .replace(".", "");
+    const extension = getFileExtension(
+      req.file.originalname
+    );
 
     const cloudinaryResult =
       await uploadToCloudinary(
@@ -78,28 +70,18 @@ const createDocument = async (req, res) => {
         "docyard/documents"
       );
 
-    if (
-      req.file.path &&
-      fs.existsSync(req.file.path)
-    ) {
-      fs.unlinkSync(req.file.path);
-    }
+    deleteLocalFile(req.file.path);
 
     const document = await Document.create({
       title: title.trim(),
-
       description: description.trim(),
-
       author: author.trim(),
-
       slug: slug.trim().toLowerCase(),
 
       fileUrl: cloudinaryResult.secure_url,
-
       publicId: cloudinaryResult.public_id,
 
       fileType: extension,
-
       fileSize: req.file.size,
 
       category: category.trim(),
@@ -115,9 +97,7 @@ const createDocument = async (req, res) => {
         : [],
 
       language: language || "English",
-
       visibility: visibility || "public",
-
       createdBy: req.user._id,
     });
 
@@ -132,12 +112,7 @@ const createDocument = async (req, res) => {
       error
     );
 
-    if (
-      req.file?.path &&
-      fs.existsSync(req.file.path)
-    ) {
-      fs.unlinkSync(req.file.path);
-    }
+    deleteLocalFile(req.file?.path);
 
     return res.status(500).json({
       success: false,
@@ -147,8 +122,6 @@ const createDocument = async (req, res) => {
     });
   }
 };
-
-
 
 const getAllDocuments = async (req, res) => {
   try {
@@ -167,16 +140,19 @@ const getAllDocuments = async (req, res) => {
       documents,
     });
   } catch (error) {
-    console.error("Get Documents Error:", error);
+    console.error(
+      "Get Documents Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while fetching documents",
+      message:
+        "Something went wrong while fetching documents",
       error: error.message,
     });
   }
 };
-
 
 const getDocumentBySlug = async (req, res) => {
   try {
@@ -216,7 +192,6 @@ const getDocumentBySlug = async (req, res) => {
       }
     }
 
-
     document.views += 1;
 
     await document.save();
@@ -226,7 +201,10 @@ const getDocumentBySlug = async (req, res) => {
       document,
     });
   } catch (error) {
-    console.error("Get Document Error:", error);
+    console.error(
+      "Get Document Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -236,7 +214,6 @@ const getDocumentBySlug = async (req, res) => {
     });
   }
 };
-
 
 const getMyDocuments = async (req, res) => {
   try {
@@ -264,7 +241,6 @@ const getMyDocuments = async (req, res) => {
   }
 };
 
-
 const updateDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -274,9 +250,7 @@ const updateDocument = async (req, res) => {
     );
 
     if (!document) {
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      deleteLocalFile(req.file?.path);
 
       return res.status(404).json({
         success: false,
@@ -284,14 +258,11 @@ const updateDocument = async (req, res) => {
       });
     }
 
-
     if (
       document.createdBy.toString() !==
       req.user._id.toString()
     ) {
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      deleteLocalFile(req.file?.path);
 
       return res.status(403).json({
         success: false,
@@ -311,37 +282,35 @@ const updateDocument = async (req, res) => {
       visibility,
     } = req.body;
 
-
     if (slug && slug !== document.slug) {
-      const existingDocument = await Document.findOne({
-        slug: slug.toLowerCase(),
-        _id: { $ne: documentId },
-      });
+      const existingDocument =
+        await Document.findOne({
+          slug: slug.toLowerCase(),
+          _id: { $ne: documentId },
+        });
 
       if (existingDocument) {
-        if (
-          req.file?.path &&
-          fs.existsSync(req.file.path)
-        ) {
-          fs.unlinkSync(req.file.path);
-        }
+        deleteLocalFile(req.file?.path);
 
         return res.status(409).json({
           success: false,
-          message: "This slug is already being used",
+          message:
+            "This slug is already being used",
         });
       }
 
-      document.slug = slug.trim().toLowerCase();
+      document.slug = slug
+        .trim()
+        .toLowerCase();
     }
 
-    // Update fields
     if (title !== undefined) {
       document.title = title.trim();
     }
 
     if (description !== undefined) {
-      document.description = description.trim();
+      document.description =
+        description.trim();
     }
 
     if (author !== undefined) {
@@ -370,36 +339,33 @@ const updateDocument = async (req, res) => {
       document.visibility = visibility;
     }
 
-    // --------------------------------------
-    // Replace uploaded file
-    // --------------------------------------
-
     if (req.file) {
-      const extension = path
-        .extname(req.file.originalname)
-        .toLowerCase()
-        .replace(".", "");
+      const extension = getFileExtension(
+        req.file.originalname
+      );
 
-      const oldFileUrl = document.fileUrl;
-
-      document.fileUrl =
-        `/uploads/documents/${req.file.filename}`;
-
-      document.fileType = extension;
-
-      document.fileSize = req.file.size;
-
-      // Delete old file
-      if (oldFileUrl) {
-        const oldFilePath = path.join(
-          process.cwd(),
-          oldFileUrl
+      const cloudinaryResult =
+        await uploadToCloudinary(
+          req.file.path,
+          "docyard/documents"
         );
 
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-        }
+      deleteLocalFile(req.file.path);
+
+      if (document.publicId) {
+        await deleteFromCloudinary(
+          document.publicId
+        );
       }
+
+      document.fileUrl =
+        cloudinaryResult.secure_url;
+
+      document.publicId =
+        cloudinaryResult.public_id;
+
+      document.fileType = extension;
+      document.fileSize = req.file.size;
     }
 
     await document.save();
@@ -415,12 +381,7 @@ const updateDocument = async (req, res) => {
       error
     );
 
-    if (
-      req.file?.path &&
-      fs.existsSync(req.file.path)
-    ) {
-      fs.unlinkSync(req.file.path);
-    }
+    deleteLocalFile(req.file?.path);
 
     return res.status(500).json({
       success: false,
@@ -431,10 +392,6 @@ const updateDocument = async (req, res) => {
   }
 };
 
-
-// ======================================
-// DELETE DOCUMENT
-// ======================================
 const deleteDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -450,7 +407,6 @@ const deleteDocument = async (req, res) => {
       });
     }
 
-    // Check ownership
     if (
       document.createdBy.toString() !==
       req.user._id.toString()
@@ -462,16 +418,10 @@ const deleteDocument = async (req, res) => {
       });
     }
 
-    // Delete physical file
-    if (document.fileUrl) {
-      const filePath = path.join(
-        process.cwd(),
-        document.fileUrl
+    if (document.publicId) {
+      await deleteFromCloudinary(
+        document.publicId
       );
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
     }
 
     await Document.findByIdAndDelete(
@@ -497,10 +447,6 @@ const deleteDocument = async (req, res) => {
   }
 };
 
-
-// ======================================
-// DOWNLOAD DOCUMENT
-// ======================================
 const downloadDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -516,7 +462,6 @@ const downloadDocument = async (req, res) => {
       });
     }
 
-    // Private document
     if (document.visibility === "private") {
       if (!req.user) {
         return res.status(403).json({
@@ -537,7 +482,6 @@ const downloadDocument = async (req, res) => {
       }
     }
 
-    // Increase downloads
     document.downloads += 1;
 
     await document.save();
@@ -561,7 +505,6 @@ const downloadDocument = async (req, res) => {
     });
   }
 };
-
 
 export {
   createDocument,
