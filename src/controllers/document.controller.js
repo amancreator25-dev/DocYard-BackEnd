@@ -1,7 +1,11 @@
 import { Document } from "../models/document.model.js";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from "../config/cloudinary.js";
+
 import fs from "fs";
 import path from "path";
-
 // ======================================
 // CREATE DOCUMENT
 // ======================================
@@ -34,8 +38,12 @@ const createDocument = async (req, res) => {
       !slug ||
       !category
     ) {
-      // Delete uploaded file if validation fails
-      fs.unlinkSync(req.file.path);
+      if (
+        req.file.path &&
+        fs.existsSync(req.file.path)
+      ) {
+        fs.unlinkSync(req.file.path);
+      }
 
       return res.status(400).json({
         success: false,
@@ -44,16 +52,23 @@ const createDocument = async (req, res) => {
     }
 
     // Check slug
-    const existingDocument = await Document.findOne({
-      slug: slug.toLowerCase(),
-    });
+    const existingDocument =
+      await Document.findOne({
+        slug: slug.toLowerCase(),
+      });
 
     if (existingDocument) {
-      fs.unlinkSync(req.file.path);
+      if (
+        req.file.path &&
+        fs.existsSync(req.file.path)
+      ) {
+        fs.unlinkSync(req.file.path);
+      }
 
       return res.status(409).json({
         success: false,
-        message: "A document with this slug already exists",
+        message:
+          "A document with this slug already exists",
       });
     }
 
@@ -62,6 +77,21 @@ const createDocument = async (req, res) => {
       .extname(req.file.originalname)
       .toLowerCase()
       .replace(".", "");
+
+    // Upload to Cloudinary
+    const cloudinaryResult =
+      await uploadToCloudinary(
+        req.file.path,
+        "docyard/documents"
+      );
+
+    // Remove temporary local file
+    if (
+      req.file.path &&
+      fs.existsSync(req.file.path)
+    ) {
+      fs.unlinkSync(req.file.path);
+    }
 
     // Create document
     const document = await Document.create({
@@ -73,7 +103,11 @@ const createDocument = async (req, res) => {
 
       slug: slug.trim().toLowerCase(),
 
-      fileUrl: `/uploads/documents/${req.file.filename}`,
+      // Cloudinary URL
+      fileUrl: cloudinaryResult.secure_url,
+
+      // Cloudinary public ID
+      publicId: cloudinaryResult.public_id,
 
       fileType: extension,
 
@@ -84,7 +118,11 @@ const createDocument = async (req, res) => {
       tags: tags
         ? Array.isArray(tags)
           ? tags
-          : tags.split(",").map((tag) => tag.trim().toLowerCase())
+          : tags
+              .split(",")
+              .map((tag) =>
+                tag.trim().toLowerCase()
+              )
         : [],
 
       language: language || "English",
@@ -100,16 +138,23 @@ const createDocument = async (req, res) => {
       document,
     });
   } catch (error) {
-    console.error("Create Document Error:", error);
+    console.error(
+      "Create Document Error:",
+      error
+    );
 
-    // Delete uploaded file if database operation fails
-    if (req.file?.path && fs.existsSync(req.file.path)) {
+    // Remove temporary file if upload/database fails
+    if (
+      req.file?.path &&
+      fs.existsSync(req.file.path)
+    ) {
       fs.unlinkSync(req.file.path);
     }
 
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while creating document",
+      message:
+        "Something went wrong while creating document",
       error: error.message,
     });
   }

@@ -9,9 +9,9 @@ import path from "path";
 
 import userRoutes from "./routes/user.routes.js";
 import documentRoutes from "./routes/document.routes.js";
-import likeRoutes from "./routes/like.routes.js";
+import likeRoutes from "./routes/likes.routes.js";
 import bookmarkRoutes from "./routes/bookmark.routes.js";
-import commentRoutes from "./routes/comment.routes.js";
+import commentRoutes from "./routes/comments.routes.js";
 import contactRoutes from "./routes/contact.routes.js";
 import searchRoutes from "./routes/search.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
