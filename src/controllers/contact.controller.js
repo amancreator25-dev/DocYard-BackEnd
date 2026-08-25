@@ -1,10 +1,11 @@
 import { Contact } from "../models/contact.model.js";
 
-// ======================================
-// CREATE CONTACT MESSAGE
-// ======================================
-const createContact = async (req, res) => {
-  try {
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const createContact = asyncHandler(
+  async (req, res) => {
     const {
       name,
       email,
@@ -12,110 +13,92 @@ const createContact = async (req, res) => {
       message,
     } = req.body;
 
-    // Validate required fields
-    if (!name || !email || !subject || !message) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields are required",
-      });
+    if (
+      !name ||
+      !email ||
+      !subject ||
+      !message
+    ) {
+      throw new ApiError(
+        400,
+        "All fields are required"
+      );
     }
 
-    // Create contact message
     const contact = await Contact.create({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       subject: subject.trim(),
       message: message.trim(),
-
-      // Optional for guest users
       user: req.user?._id || null,
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Your message has been sent successfully",
-      contact,
-    });
-  } catch (error) {
-    console.error("Create Contact Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while sending your message",
-      error: error.message,
-    });
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        { contact },
+        "Your message has been sent successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET ALL CONTACT MESSAGES
-// ======================================
-const getAllContacts = async (req, res) => {
-  try {
+const getAllContacts = asyncHandler(
+  async (req, res) => {
     const contacts = await Contact.find()
-      .populate("user", "username fullname email")
+      .populate(
+        "user",
+        "username fullname email"
+      )
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      count: contacts.length,
-      contacts,
-    });
-  } catch (error) {
-    console.error("Get Contacts Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching contact messages",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: contacts.length,
+          contacts,
+        },
+        "Contact messages fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET SINGLE CONTACT MESSAGE
-// ======================================
-const getContactById = async (req, res) => {
-  try {
+const getContactById = asyncHandler(
+  async (req, res) => {
     const { contactId } = req.params;
 
-    const contact = await Contact.findById(contactId)
-      .populate("user", "username fullname email");
+    const contact =
+      await Contact.findById(
+        contactId
+      ).populate(
+        "user",
+        "username fullname email"
+      );
 
     if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: "Contact message not found",
-      });
+      throw new ApiError(
+        404,
+        "Contact message not found"
+      );
     }
 
-    return res.status(200).json({
-      success: true,
-      contact,
-    });
-  } catch (error) {
-    console.error("Get Contact Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching contact message",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { contact },
+        "Contact message fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// UPDATE CONTACT STATUS
-// ======================================
-const updateContactStatus = async (req, res) => {
-  try {
+const updateContactStatus = asyncHandler(
+  async (req, res) => {
     const { contactId } = req.params;
     const { status } = req.body;
 
-    // Validate status
     const allowedStatuses = [
       "pending",
       "in-progress",
@@ -123,75 +106,67 @@ const updateContactStatus = async (req, res) => {
     ];
 
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid contact status",
-      });
+      throw new ApiError(
+        400,
+        "Invalid contact status"
+      );
     }
 
-    const contact = await Contact.findById(contactId);
+    const contact =
+      await Contact.findById(
+        contactId
+      );
 
     if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: "Contact message not found",
-      });
+      throw new ApiError(
+        404,
+        "Contact message not found"
+      );
     }
 
     contact.status = status;
 
     await contact.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "Contact status updated successfully",
-      contact,
-    });
-  } catch (error) {
-    console.error("Update Contact Status Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while updating contact status",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { contact },
+        "Contact status updated successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// DELETE CONTACT MESSAGE
-// ======================================
-const deleteContact = async (req, res) => {
-  try {
+const deleteContact = asyncHandler(
+  async (req, res) => {
     const { contactId } = req.params;
 
-    const contact = await Contact.findById(contactId);
+    const contact =
+      await Contact.findById(
+        contactId
+      );
 
     if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: "Contact message not found",
-      });
+      throw new ApiError(
+        404,
+        "Contact message not found"
+      );
     }
 
-    await Contact.findByIdAndDelete(contactId);
+    await Contact.findByIdAndDelete(
+      contactId
+    );
 
-    return res.status(200).json({
-      success: true,
-      message: "Contact message deleted successfully",
-    });
-  } catch (error) {
-    console.error("Delete Contact Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while deleting contact message",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        null,
+        "Contact message deleted successfully"
+      )
+    );
   }
-};
-
+);
 
 export {
   createContact,
