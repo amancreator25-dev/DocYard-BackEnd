@@ -1,230 +1,134 @@
-import { Comment } from "../models/comment.model.js";
+import { Bookmark } from "../models/bookmark.model.js";
 import { Document } from "../models/document.model.js";
 
-// ======================================
-// ADD COMMENT
-// ======================================
-const addComment = async (req, res) => {
-  try {
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const addBookmark = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
-    const { content, parentComment } = req.body;
     const userId = req.user._id;
 
-    // Validate content
-    if (!content || !content.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Comment cannot be empty",
-      });
-    }
-
-    // Check document
-    const document = await Document.findById(documentId);
+    const document =
+      await Document.findById(documentId);
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
-    // If this is a reply, check parent comment
-    if (parentComment) {
-      const parent = await Comment.findOne({
-        _id: parentComment,
+    const existingBookmark =
+      await Bookmark.findOne({
+        user: userId,
         document: documentId,
       });
 
-      if (!parent) {
-        return res.status(404).json({
-          success: false,
-          message: "Parent comment not found",
-        });
-      }
+    if (existingBookmark) {
+      throw new ApiError(
+        409,
+        "Document already bookmarked"
+      );
     }
 
-    // Create comment
-    const comment = await Comment.create({
+    const bookmark = await Bookmark.create({
       user: userId,
       document: documentId,
-      content: content.trim(),
-      parentComment: parentComment || null,
     });
 
-    // Populate user information
-    const populatedComment = await Comment.findById(comment._id)
-      .populate("user", "username fullname avatar");
-
-    return res.status(201).json({
-      success: true,
-      message: parentComment
-        ? "Reply added successfully"
-        : "Comment added successfully",
-      comment: populatedComment,
-    });
-  } catch (error) {
-    console.error("Add Comment Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while adding comment",
-      error: error.message,
-    });
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        { bookmark },
+        "Document bookmarked successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET DOCUMENT COMMENTS
-// ======================================
-const getDocumentComments = async (req, res) => {
-  try {
+const removeBookmark = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
+    const userId = req.user._id;
 
-    // Check document
-    const document = await Document.findById(documentId);
-
-    if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
+    const bookmark =
+      await Bookmark.findOneAndDelete({
+        user: userId,
+        document: documentId,
       });
+
+    if (!bookmark) {
+      throw new ApiError(
+        404,
+        "Document is not bookmarked"
+      );
     }
 
-    const comments = await Comment.find({
-      document: documentId,
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        null,
+        "Bookmark removed successfully"
+      )
+    );
+  }
+);
+
+const checkBookmarkStatus = asyncHandler(
+  async (req, res) => {
+    const { documentId } = req.params;
+    const userId = req.user._id;
+
+    const bookmark =
+      await Bookmark.findOne({
+        user: userId,
+        document: documentId,
+      });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          bookmarked: !!bookmark,
+        },
+        "Bookmark status fetched successfully"
+      )
+    );
+  }
+);
+
+const getMyBookmarks = asyncHandler(
+  async (req, res) => {
+    const bookmarks = await Bookmark.find({
+      user: req.user._id,
     })
-      .populate("user", "username fullname avatar")
-      .sort({ createdAt: 1 });
+      .populate({
+        path: "document",
+        populate: {
+          path: "createdBy",
+          select: "username fullname avatar",
+        },
+      })
+      .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      count: comments.length,
-      comments,
-    });
-  } catch (error) {
-    console.error("Get Comments Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching comments",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: bookmarks.length,
+          bookmarks,
+        },
+        "Bookmarks fetched successfully"
+      )
+    );
   }
-};
-
-
-// ======================================
-// UPDATE COMMENT
-// ======================================
-const updateComment = async (req, res) => {
-  try {
-    const { commentId } = req.params;
-    const { content } = req.body;
-
-    if (!content || !content.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Comment cannot be empty",
-      });
-    }
-
-    const comment = await Comment.findById(commentId);
-
-    if (!comment) {
-      return res.status(404).json({
-        success: false,
-        message: "Comment not found",
-      });
-    }
-
-    // Check ownership
-    if (
-      comment.user.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not allowed to edit this comment",
-      });
-    }
-
-    comment.content = content.trim();
-    comment.isEdited = true;
-
-    await comment.save();
-
-    const updatedComment = await Comment.findById(comment._id)
-      .populate("user", "username fullname avatar");
-
-    return res.status(200).json({
-      success: true,
-      message: "Comment updated successfully",
-      comment: updatedComment,
-    });
-  } catch (error) {
-    console.error("Update Comment Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while updating comment",
-      error: error.message,
-    });
-  }
-};
-
-
-// ======================================
-// DELETE COMMENT
-// ======================================
-const deleteComment = async (req, res) => {
-  try {
-    const { commentId } = req.params;
-
-    const comment = await Comment.findById(commentId);
-
-    if (!comment) {
-      return res.status(404).json({
-        success: false,
-        message: "Comment not found",
-      });
-    }
-
-    // Check ownership
-    if (
-      comment.user.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not allowed to delete this comment",
-      });
-    }
-
-    // Delete replies as well
-    await Comment.deleteMany({
-      parentComment: commentId,
-    });
-
-    await Comment.findByIdAndDelete(commentId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Comment deleted successfully",
-    });
-  } catch (error) {
-    console.error("Delete Comment Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while deleting comment",
-      error: error.message,
-    });
-  }
-};
-
+);
 
 export {
-  addComment,
-  getDocumentComments,
-  updateComment,
-  deleteComment,
+  addBookmark,
+  removeBookmark,
+  checkBookmarkStatus,
+  getMyBookmarks,
 };
