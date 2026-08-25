@@ -1,14 +1,22 @@
-import { Bookmark } from "../models/bookmark.model.js";
+import { Comment } from "../models/comment.model.js";
 import { Document } from "../models/document.model.js";
 
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
-const addBookmark = asyncHandler(
+const addComment = asyncHandler(
   async (req, res) => {
     const { documentId } = req.params;
+    const { content, parentComment } = req.body;
     const userId = req.user._id;
+
+    if (!content || !content.trim()) {
+      throw new ApiError(
+        400,
+        "Comment cannot be empty"
+      );
+    }
 
     const document =
       await Document.findById(documentId);
@@ -20,115 +28,186 @@ const addBookmark = asyncHandler(
       );
     }
 
-    const existingBookmark =
-      await Bookmark.findOne({
-        user: userId,
-        document: documentId,
-      });
+    if (parentComment) {
+      const parent =
+        await Comment.findOne({
+          _id: parentComment,
+          document: documentId,
+        });
 
-    if (existingBookmark) {
-      throw new ApiError(
-        409,
-        "Document already bookmarked"
-      );
+      if (!parent) {
+        throw new ApiError(
+          404,
+          "Parent comment not found"
+        );
+      }
     }
 
-    const bookmark = await Bookmark.create({
+    const comment = await Comment.create({
       user: userId,
       document: documentId,
+      content: content.trim(),
+      parentComment: parentComment || null,
     });
+
+    const populatedComment =
+      await Comment.findById(comment._id)
+        .populate(
+          "user",
+          "username fullname avatar"
+        );
 
     return res.status(201).json(
       new ApiResponse(
         201,
-        { bookmark },
-        "Document bookmarked successfully"
+        {
+          comment: populatedComment,
+        },
+        parentComment
+          ? "Reply added successfully"
+          : "Comment added successfully"
       )
     );
   }
 );
 
-const removeBookmark = asyncHandler(
+const getDocumentComments = asyncHandler(
   async (req, res) => {
     const { documentId } = req.params;
-    const userId = req.user._id;
 
-    const bookmark =
-      await Bookmark.findOneAndDelete({
-        user: userId,
-        document: documentId,
-      });
+    const document =
+      await Document.findById(documentId);
 
-    if (!bookmark) {
+    if (!document) {
       throw new ApiError(
         404,
-        "Document is not bookmarked"
+        "Document not found"
       );
     }
+
+    const comments = await Comment.find({
+      document: documentId,
+    })
+      .populate(
+        "user",
+        "username fullname avatar"
+      )
+      .sort({ createdAt: 1 });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: comments.length,
+          comments,
+        },
+        "Comments fetched successfully"
+      )
+    );
+  }
+);
+
+const updateComment = asyncHandler(
+  async (req, res) => {
+    const { commentId } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      throw new ApiError(
+        400,
+        "Comment cannot be empty"
+      );
+    }
+
+    const comment =
+      await Comment.findById(commentId);
+
+    if (!comment) {
+      throw new ApiError(
+        404,
+        "Comment not found"
+      );
+    }
+
+    if (
+      comment.user.toString() !==
+      req.user._id.toString()
+    ) {
+      throw new ApiError(
+        403,
+        "You are not allowed to edit this comment"
+      );
+    }
+
+    comment.content = content.trim();
+    comment.isEdited = true;
+
+    await comment.save();
+
+    const updatedComment =
+      await Comment.findById(comment._id)
+        .populate(
+          "user",
+          "username fullname avatar"
+        );
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          comment: updatedComment,
+        },
+        "Comment updated successfully"
+      )
+    );
+  }
+);
+
+const deleteComment = asyncHandler(
+  async (req, res) => {
+    const { commentId } = req.params;
+
+    const comment =
+      await Comment.findById(commentId);
+
+    if (!comment) {
+      throw new ApiError(
+        404,
+        "Comment not found"
+      );
+    }
+
+    if (
+      comment.user.toString() !==
+      req.user._id.toString()
+    ) {
+      throw new ApiError(
+        403,
+        "You are not allowed to delete this comment"
+      );
+    }
+
+    await Comment.deleteMany({
+      parentComment: commentId,
+    });
+
+    await Comment.findByIdAndDelete(
+      commentId
+    );
 
     return res.status(200).json(
       new ApiResponse(
         200,
         null,
-        "Bookmark removed successfully"
-      )
-    );
-  }
-);
-
-const checkBookmarkStatus = asyncHandler(
-  async (req, res) => {
-    const { documentId } = req.params;
-    const userId = req.user._id;
-
-    const bookmark =
-      await Bookmark.findOne({
-        user: userId,
-        document: documentId,
-      });
-
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {
-          bookmarked: !!bookmark,
-        },
-        "Bookmark status fetched successfully"
-      )
-    );
-  }
-);
-
-const getMyBookmarks = asyncHandler(
-  async (req, res) => {
-    const bookmarks = await Bookmark.find({
-      user: req.user._id,
-    })
-      .populate({
-        path: "document",
-        populate: {
-          path: "createdBy",
-          select: "username fullname avatar",
-        },
-      })
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {
-          count: bookmarks.length,
-          bookmarks,
-        },
-        "Bookmarks fetched successfully"
+        "Comment deleted successfully"
       )
     );
   }
 );
 
 export {
-  addBookmark,
-  removeBookmark,
-  checkBookmarkStatus,
-  getMyBookmarks,
+  addComment,
+  getDocumentComments,
+  updateComment,
+  deleteComment,
 };
