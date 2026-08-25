@@ -1,130 +1,106 @@
 import { Bookmark } from "../models/bookmark.model.js";
 import { Document } from "../models/document.model.js";
 
-// ======================================
-// ADD BOOKMARK
-// ======================================
-const addBookmark = async (req, res) => {
-  try {
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const addBookmark = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user._id;
 
-    // Check if document exists
-    const document = await Document.findById(documentId);
+    const document =
+      await Document.findById(documentId);
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
-    // Check if already bookmarked
-    const existingBookmark = await Bookmark.findOne({
-      user: userId,
-      document: documentId,
-    });
+    const existingBookmark =
+      await Bookmark.findOne({
+        user: userId,
+        document: documentId,
+      });
 
     if (existingBookmark) {
-      return res.status(409).json({
-        success: false,
-        message: "Document already bookmarked",
-      });
+      throw new ApiError(
+        409,
+        "Document already bookmarked"
+      );
     }
 
-    // Create bookmark
     const bookmark = await Bookmark.create({
       user: userId,
       document: documentId,
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Document bookmarked successfully",
-      bookmark,
-    });
-  } catch (error) {
-    console.error("Add Bookmark Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while bookmarking document",
-      error: error.message,
-    });
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        { bookmark },
+        "Document bookmarked successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// REMOVE BOOKMARK
-// ======================================
-const removeBookmark = async (req, res) => {
-  try {
+const removeBookmark = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user._id;
 
-    const bookmark = await Bookmark.findOneAndDelete({
-      user: userId,
-      document: documentId,
-    });
+    const bookmark =
+      await Bookmark.findOneAndDelete({
+        user: userId,
+        document: documentId,
+      });
 
     if (!bookmark) {
-      return res.status(404).json({
-        success: false,
-        message: "Document is not bookmarked",
-      });
+      throw new ApiError(
+        404,
+        "Document is not bookmarked"
+      );
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Bookmark removed successfully",
-    });
-  } catch (error) {
-    console.error("Remove Bookmark Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while removing bookmark",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        null,
+        "Bookmark removed successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// CHECK BOOKMARK STATUS
-// ======================================
-const checkBookmarkStatus = async (req, res) => {
-  try {
+const checkBookmarkStatus = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user._id;
 
-    const bookmark = await Bookmark.findOne({
-      user: userId,
-      document: documentId,
-    });
+    const bookmark =
+      await Bookmark.findOne({
+        user: userId,
+        document: documentId,
+      });
 
-    return res.status(200).json({
-      success: true,
-      bookmarked: !!bookmark,
-    });
-  } catch (error) {
-    console.error("Check Bookmark Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while checking bookmark status",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          bookmarked: !!bookmark,
+        },
+        "Bookmark status fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET MY BOOKMARKS
-// ======================================
-const getMyBookmarks = async (req, res) => {
-  try {
+const getMyBookmarks = asyncHandler(
+  async (req, res) => {
     const bookmarks = await Bookmark.find({
       user: req.user._id,
     })
@@ -137,22 +113,18 @@ const getMyBookmarks = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      count: bookmarks.length,
-      bookmarks,
-    });
-  } catch (error) {
-    console.error("Get My Bookmarks Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while fetching bookmarks",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          count: bookmarks.length,
+          bookmarks,
+        },
+        "Bookmarks fetched successfully"
+      )
+    );
   }
-};
-
+);
 
 export {
   addBookmark,
