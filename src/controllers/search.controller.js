@@ -1,10 +1,11 @@
 import { Document } from "../models/document.model.js";
 
-// ======================================
-// SEARCH & FILTER DOCUMENTS
-// ======================================
-const searchDocuments = async (req, res) => {
-  try {
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const searchDocuments = asyncHandler(
+  async (req, res) => {
     const {
       q,
       category,
@@ -15,52 +16,44 @@ const searchDocuments = async (req, res) => {
       limit = 12,
     } = req.query;
 
-    // -------------------------------
-    // Pagination
-    // -------------------------------
-
-    const currentPage = Math.max(parseInt(page) || 1, 1);
+    const currentPage = Math.max(
+      parseInt(page) || 1,
+      1
+    );
 
     const itemsPerPage = Math.min(
-      Math.max(parseInt(limit) || 12, 1),
+      Math.max(
+        parseInt(limit) || 12,
+        1
+      ),
       50
     );
 
-    const skip = (currentPage - 1) * itemsPerPage;
-
-    // -------------------------------
-    // Build Query
-    // -------------------------------
+    const skip =
+      (currentPage - 1) *
+      itemsPerPage;
 
     const query = {
       visibility: "public",
     };
 
-    // Text search
     if (q && q.trim()) {
       query.$text = {
         $search: q.trim(),
       };
     }
 
-    // Category filter
     if (category && category.trim()) {
       query.category = category.trim();
     }
 
-    // Language filter
     if (language && language.trim()) {
       query.language = language.trim();
     }
 
-    // Tag filter
     if (tag && tag.trim()) {
       query.tags = tag.trim().toLowerCase();
     }
-
-    // -------------------------------
-    // Sorting
-    // -------------------------------
 
     let sortOption = {};
 
@@ -91,62 +84,47 @@ const searchDocuments = async (req, res) => {
         break;
     }
 
-    // -------------------------------
-    // Get Documents
-    // -------------------------------
+    const [
+      documents,
+      totalDocuments,
+    ] = await Promise.all([
+      Document.find(query)
+        .populate(
+          "createdBy",
+          "username fullname avatar"
+        )
+        .sort(sortOption)
+        .skip(skip)
+        .limit(itemsPerPage),
 
-    const [documents, totalDocuments] =
-      await Promise.all([
-        Document.find(query)
-          .populate(
-            "createdBy",
-            "username fullname avatar"
-          )
-          .sort(sortOption)
-          .skip(skip)
-          .limit(itemsPerPage),
-
-        Document.countDocuments(query),
-      ]);
-
-    // -------------------------------
-    // Pagination Information
-    // -------------------------------
+      Document.countDocuments(query),
+    ]);
 
     const totalPages = Math.ceil(
       totalDocuments / itemsPerPage
     );
 
-    return res.status(200).json({
-      success: true,
-
-      documents,
-
-      pagination: {
-        currentPage,
-        itemsPerPage,
-        totalDocuments,
-        totalPages,
-        hasNextPage:
-          currentPage < totalPages,
-        hasPreviousPage:
-          currentPage > 1,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "Search Documents Error:",
-      error
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          documents,
+          pagination: {
+            currentPage,
+            itemsPerPage,
+            totalDocuments,
+            totalPages,
+            hasNextPage:
+              currentPage < totalPages,
+            hasPreviousPage:
+              currentPage > 1,
+          },
+        },
+        "Documents fetched successfully"
+      )
     );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Something went wrong while searching documents",
-      error: error.message,
-    });
   }
-};
+);
 
 export {
   searchDocuments,

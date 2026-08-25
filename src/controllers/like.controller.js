@@ -1,101 +1,83 @@
 import { Like } from "../models/like.model.js";
 import { Document } from "../models/document.model.js";
 
-// ======================================
-// LIKE DOCUMENT
-// ======================================
-const likeDocument = async (req, res) => {
-  try {
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+
+const likeDocument = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user._id;
 
-    // Check if document exists
-    const document = await Document.findById(documentId);
+    const document =
+      await Document.findById(documentId);
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
-    // Check if already liked
-    const existingLike = await Like.findOne({
-      user: userId,
-      document: documentId,
-    });
+    const existingLike =
+      await Like.findOne({
+        user: userId,
+        document: documentId,
+      });
 
     if (existingLike) {
-      return res.status(409).json({
-        success: false,
-        message: "Document already liked",
-      });
+      throw new ApiError(
+        409,
+        "Document already liked"
+      );
     }
 
-    // Create like
     const like = await Like.create({
       user: userId,
       document: documentId,
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Document liked successfully",
-      like,
-    });
-  } catch (error) {
-    console.error("Like Document Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while liking document",
-      error: error.message,
-    });
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        { like },
+        "Document liked successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// UNLIKE DOCUMENT
-// ======================================
-const unlikeDocument = async (req, res) => {
-  try {
+const unlikeDocument = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user._id;
 
-    const like = await Like.findOneAndDelete({
-      user: userId,
-      document: documentId,
-    });
+    const like =
+      await Like.findOneAndDelete({
+        user: userId,
+        document: documentId,
+      });
 
     if (!like) {
-      return res.status(404).json({
-        success: false,
-        message: "You have not liked this document",
-      });
+      throw new ApiError(
+        404,
+        "You have not liked this document"
+      );
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Document unliked successfully",
-    });
-  } catch (error) {
-    console.error("Unlike Document Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while unliking document",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        null,
+        "Document unliked successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// CHECK LIKE STATUS
-// ======================================
-const checkLikeStatus = async (req, res) => {
-  try {
+const checkLikeStatus = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user._id;
 
@@ -104,58 +86,46 @@ const checkLikeStatus = async (req, res) => {
       document: documentId,
     });
 
-    return res.status(200).json({
-      success: true,
-      liked: !!like,
-    });
-  } catch (error) {
-    console.error("Check Like Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while checking like status",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          liked: !!like,
+        },
+        "Like status fetched successfully"
+      )
+    );
   }
-};
+);
 
-
-// ======================================
-// GET LIKE COUNT
-// ======================================
-const getLikeCount = async (req, res) => {
-  try {
+const getLikeCount = asyncHandler(
+  async (req, res) => {
     const { documentId } = req.params;
 
-    // Check document
-    const document = await Document.findById(documentId);
+    const document =
+      await Document.findById(documentId);
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
+      throw new ApiError(
+        404,
+        "Document not found"
+      );
     }
 
-    const likeCount = await Like.countDocuments({
-      document: documentId,
-    });
+    const likeCount =
+      await Like.countDocuments({
+        document: documentId,
+      });
 
-    return res.status(200).json({
-      success: true,
-      likeCount,
-    });
-  } catch (error) {
-    console.error("Get Like Count Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while getting like count",
-      error: error.message,
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { likeCount },
+        "Like count fetched successfully"
+      )
+    );
   }
-};
-
+);
 
 export {
   likeDocument,
