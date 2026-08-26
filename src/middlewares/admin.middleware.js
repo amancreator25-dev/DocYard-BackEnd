@@ -1,30 +1,26 @@
-const adminMiddleware = (req, res, next) => {
-  try {
-    // authMiddleware should run first
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+
+const adminMiddleware = asyncHandler(
+  async (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
+      throw new ApiError(
+        401,
+        "Authentication required"
+      );
     }
 
-    // Check user role
     if (req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. Admin privileges required",
-      });
+      throw new ApiError(
+        403,
+        "Access denied. Admin privileges required"
+      );
     }
 
     next();
-  } catch (error) {
-    console.error("Admin Middleware Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while checking permissions",
-    });
   }
-};
+);
 
-export { adminMiddleware };
+export {
+  adminMiddleware,
+};

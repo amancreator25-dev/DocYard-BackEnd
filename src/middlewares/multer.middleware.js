@@ -2,47 +2,36 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-// ======================================
-// UPLOAD DIRECTORY
-// ======================================
-
 const uploadDirectory = path.join(
   process.cwd(),
   "uploads",
   "documents"
 );
 
-// Create directory if it doesn't exist
 if (!fs.existsSync(uploadDirectory)) {
   fs.mkdirSync(uploadDirectory, {
     recursive: true,
   });
 }
 
-
-// ======================================
-// STORAGE
-// ======================================
-
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: (req, file, cb) => {
     cb(null, uploadDirectory);
   },
 
-  filename: function (req, file, cb) {
-    const extension = path.extname(file.originalname);
+  filename: (req, file, cb) => {
+    const extension = path.extname(
+      file.originalname
+    );
 
     const fileName =
-      `${Date.now()}-${Math.round(Math.random() * 1E9)}${extension}`;
+      `${Date.now()}-${Math.round(
+        Math.random() * 1e9
+      )}${extension}`;
 
     cb(null, fileName);
   },
 });
-
-
-// ======================================
-// FILE FILTER
-// ======================================
 
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
@@ -61,9 +50,10 @@ const fileFilter = (req, file, cb) => {
     .extname(file.originalname)
     .toLowerCase();
 
-  // Check MIME type and extension
   if (
-    allowedMimeTypes.includes(file.mimetype) &&
+    allowedMimeTypes.includes(
+      file.mimetype
+    ) &&
     allowedExtensions.includes(extension)
   ) {
     cb(null, true);
@@ -77,25 +67,15 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-
-// ======================================
-// MULTER CONFIGURATION
-// ======================================
-
 const upload = multer({
   storage,
-
   fileFilter,
-
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB
+    fileSize: 10 * 1024 * 1024,
     files: 1,
   },
 });
 
-
-// ======================================
-// EXPORT
-// ======================================
-
-export { upload };
+export {
+  upload,
+};
