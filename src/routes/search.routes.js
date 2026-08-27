@@ -6,15 +6,9 @@ import {
 
 const router = Router();
 
-
-// ======================================
-// SEARCH DOCUMENTS
-// ======================================
-
 router.get(
   "/",
   searchDocuments
 );
-
 
 export default router;

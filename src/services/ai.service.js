@@ -9,41 +9,26 @@ import {
 import fs from "fs";
 import path from "path";
 
-// ======================================
-// GEMINI CLIENT
-// ======================================
-
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
 const MODEL =
-  process.env.GEMINI_MODEL || "gemini-3.7-flash";
-
-
-// ======================================
-// GET FILE PATH
-// ======================================
+  process.env.GEMINI_MODEL ||
+  "gemini-3.7-flash";
 
 const getDocumentFilePath = (document) => {
   if (!document?.fileUrl) {
-    throw new Error("Document file URL is missing");
+    throw new Error(
+      "Document file URL is missing"
+    );
   }
 
-  /*
-   * fileUrl example:
-   *
-   * /uploads/documents/1755789123456-file.pdf
-   *
-   * Convert it to:
-   *
-   * <project-root>/uploads/documents/file.pdf
-   */
-
-  const relativePath = document.fileUrl.replace(
-    /^[/\\]+/,
-    ""
-  );
+  const relativePath =
+    document.fileUrl.replace(
+      /^[/\\]+/,
+      ""
+    );
 
   const filePath = path.resolve(
     process.cwd(),
@@ -58,11 +43,6 @@ const getDocumentFilePath = (document) => {
 
   return filePath;
 };
-
-
-// ======================================
-// GET MIME TYPE
-// ======================================
 
 const getMimeType = (fileType) => {
   switch (fileType?.toLowerCase()) {
@@ -82,25 +62,24 @@ const getMimeType = (fileType) => {
   }
 };
 
+const uploadDocumentToGemini = async (
+  document
+) => {
+  const filePath =
+    getDocumentFilePath(document);
 
-// ======================================
-// UPLOAD DOCUMENT TO GEMINI
-// ======================================
+  const mimeType =
+    getMimeType(
+      document.fileType
+    );
 
-const uploadDocumentToGemini = async (document) => {
-  const filePath = getDocumentFilePath(document);
-
-  const mimeType = getMimeType(
-    document.fileType
-  );
-
-  const uploadedFile = await ai.files.upload({
-    file: filePath,
-
-    config: {
-      mimeType,
-    },
-  });
+  const uploadedFile =
+    await ai.files.upload({
+      file: filePath,
+      config: {
+        mimeType,
+      },
+    });
 
   if (!uploadedFile?.uri) {
     throw new Error(
@@ -111,15 +90,14 @@ const uploadDocumentToGemini = async (document) => {
   return uploadedFile;
 };
 
-
-// ======================================
-// SUMMARIZE DOCUMENT
-// ======================================
-
-const generateSummary = async (document) => {
+const generateSummary = async (
+  document
+) => {
   try {
     const uploadedFile =
-      await uploadDocumentToGemini(document);
+      await uploadDocumentToGemini(
+        document
+      );
 
     const prompt = `
 You are an expert document summarization assistant
@@ -156,7 +134,6 @@ Return only the summary.
     const response =
       await ai.models.generateContent({
         model: MODEL,
-
         contents: [
           createUserContent([
             createPartFromUri(
@@ -168,7 +145,8 @@ Return only the summary.
         ],
       });
 
-    const summary = response.text?.trim();
+    const summary =
+      response.text?.trim();
 
     if (!summary) {
       throw new Error(
@@ -189,11 +167,6 @@ Return only the summary.
   }
 };
 
-
-// ======================================
-// TRANSLATE DOCUMENT
-// ======================================
-
 const translateDocument = async (
   document,
   targetLanguage
@@ -206,7 +179,9 @@ const translateDocument = async (
     }
 
     const uploadedFile =
-      await uploadDocumentToGemini(document);
+      await uploadDocumentToGemini(
+        document
+      );
 
     const prompt = `
 You are a professional document translation
@@ -234,7 +209,6 @@ ${document.title}
     const response =
       await ai.models.generateContent({
         model: MODEL,
-
         contents: [
           createUserContent([
             createPartFromUri(
@@ -246,7 +220,8 @@ ${document.title}
         ],
       });
 
-    const translation = response.text?.trim();
+    const translation =
+      response.text?.trim();
 
     if (!translation) {
       throw new Error(
@@ -266,11 +241,6 @@ ${document.title}
     );
   }
 };
-
-
-// ======================================
-// EXPORT
-// ======================================
 
 export {
   generateSummary,
