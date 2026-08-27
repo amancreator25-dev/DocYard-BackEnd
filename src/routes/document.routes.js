@@ -15,30 +15,22 @@ import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
+router.get(
+  "/",
+  getAllDocuments
+);
 
-// ======================================
-// PUBLIC ROUTES
-// ======================================
+router.get(
+  "/slug/:slug",
+  getDocumentBySlug
+);
 
-// Get all public documents
-router.get("/", getAllDocuments);
-
-// Get document by SEO slug
-router.get("/slug/:slug", getDocumentBySlug);
-
-
-// ======================================
-// PROTECTED ROUTES
-// ======================================
-
-// Get logged-in user's documents
 router.get(
   "/my",
   authMiddleware,
   getMyDocuments
 );
 
-// Create document
 router.post(
   "/",
   authMiddleware,
@@ -46,7 +38,6 @@ router.post(
   createDocument
 );
 
-// Update document
 router.patch(
   "/:documentId",
   authMiddleware,
@@ -54,14 +45,12 @@ router.patch(
   updateDocument
 );
 
-// Delete document
 router.delete(
   "/:documentId",
   authMiddleware,
   deleteDocument
 );
 
-// Download document
 router.get(
   "/download/:documentId",
   downloadDocument
