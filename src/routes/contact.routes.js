@@ -13,23 +13,11 @@ import { adminMiddleware } from "../middlewares/admin.middleware.js";
 
 const router = Router();
 
-
-// ======================================
-// PUBLIC ROUTE
-// ======================================
-
-// Anyone can contact DocYard
 router.post(
   "/",
   createContact
 );
 
-
-// ======================================
-// ADMIN ROUTES
-// ======================================
-
-// Get all contact messages
 router.get(
   "/",
   authMiddleware,
@@ -37,8 +25,6 @@ router.get(
   getAllContacts
 );
 
-
-// Get single contact message
 router.get(
   "/:contactId",
   authMiddleware,
@@ -46,8 +32,6 @@ router.get(
   getContactById
 );
 
-
-// Update contact status
 router.patch(
   "/:contactId/status",
   authMiddleware,
@@ -55,14 +39,11 @@ router.patch(
   updateContactStatus
 );
 
-
-// Delete contact message
 router.delete(
   "/:contactId",
   authMiddleware,
   adminMiddleware,
   deleteContact
 );
-
 
 export default router;
