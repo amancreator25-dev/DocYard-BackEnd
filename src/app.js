@@ -3,10 +3,6 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import path from "path";
 
-// ======================================
-// ROUTES
-// ======================================
-
 import userRoutes from "./routes/user.routes.js";
 import documentRoutes from "./routes/document.routes.js";
 import likeRoutes from "./routes/likes.routes.js";
@@ -17,18 +13,9 @@ import searchRoutes from "./routes/search.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 
-// ======================================
-// MIDDLEWARE
-// ======================================
-
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app = express();
-
-
-// ======================================
-// BASIC CONFIGURATION
-// ======================================
 
 app.use(
   cors({
@@ -47,34 +34,22 @@ app.use(
 
 app.use(cookieParser());
 
-
-// ======================================
-// STATIC FILES
-// ======================================
-
 app.use(
   "/uploads",
   express.static(
-    path.join(process.cwd(), "uploads")
+    path.join(
+      process.cwd(),
+      "uploads"
+    )
   )
 );
 
-
-// ======================================
-// HEALTH CHECK
-// ======================================
-
 app.get("/", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     message: "DocYard API is running",
   });
 });
-
-
-// ======================================
-// API ROUTES
-// ======================================
 
 app.use(
   "/api/users",
@@ -121,11 +96,6 @@ app.use(
   adminRoutes
 );
 
-
-// ======================================
-// 404 HANDLER
-// ======================================
-
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
@@ -133,12 +103,6 @@ app.use((req, res) => {
   });
 });
 
-
-// ======================================
-// GLOBAL ERROR HANDLER
-// ======================================
-
 app.use(errorMiddleware);
-
 
 export default app;
