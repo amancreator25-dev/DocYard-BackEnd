@@ -75,47 +75,34 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-
-    bookmarks: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Document",
-      },
-    ],
-
-    uploadedDocuments: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Document",
-      },
-    ],
-
-    likedDocuments: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Like",
-      },
-    ],
   },
   {
     timestamps: true,
   }
 );
 
-// Hash password before saving
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password")) {
+    return next();
+  }
 
-  this.password = await bcrypt.hash(this.password, 10);
+  this.password = await bcrypt.hash(
+    this.password,
+    10
+  );
+
   next();
 });
 
-// Compare Password
-userSchema.methods.isPasswordCorrect = async function (password) {
-  return await bcrypt.compare(password, this.password);
+userSchema.methods.isPasswordCorrect = async function (
+  password
+) {
+  return await bcrypt.compare(
+    password,
+    this.password
+  );
 };
 
-// Generate Access Token
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
@@ -131,7 +118,6 @@ userSchema.methods.generateAccessToken = function () {
   );
 };
 
-// Generate Refresh Token
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
@@ -144,4 +130,7 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
-export const User = mongoose.model("User", userSchema);
+export const User = mongoose.model(
+  "User",
+  userSchema
+);
