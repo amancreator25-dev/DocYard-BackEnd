@@ -51,7 +51,6 @@ const registerUser = asyncHandler(
 
     if (
       !username ||
-      !fullname ||
       !email ||
       !password
     ) {
