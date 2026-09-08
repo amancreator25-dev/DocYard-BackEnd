@@ -1,8 +1,8 @@
 import { Document } from "../models/document.model.js";
 
-import { asyncHandler } from "../utils/asyncHandler.js";
+import  asyncHandler  from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
+import  apiResponse  from "../utils/ApiResponse.js";
 
 const searchDocuments = asyncHandler(
   async (req, res) => {
