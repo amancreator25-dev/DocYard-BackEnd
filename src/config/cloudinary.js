@@ -1,6 +1,11 @@
+import "dotenv/config";
+
 import { v2 as cloudinary } from "cloudinary";
 
 
+// ======================================
+// CLOUDINARY CONFIGURATION
+// ======================================
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -9,24 +14,69 @@ cloudinary.config({
 });
 
 
+// ======================================
+// CHECK CONFIGURATION
+// ======================================
+
+if (
+  !process.env.CLOUDINARY_CLOUD_NAME ||
+  !process.env.CLOUDINARY_API_KEY ||
+  !process.env.CLOUDINARY_API_SECRET
+) {
+  console.error(
+    "❌ Cloudinary environment variables are missing."
+  );
+
+  console.error(
+    "CLOUDINARY_CLOUD_NAME:",
+    process.env.CLOUDINARY_CLOUD_NAME
+      ? "Loaded"
+      : "Missing"
+  );
+
+  console.error(
+    "CLOUDINARY_API_KEY:",
+    process.env.CLOUDINARY_API_KEY
+      ? "Loaded"
+      : "Missing"
+  );
+
+  console.error(
+    "CLOUDINARY_API_SECRET:",
+    process.env.CLOUDINARY_API_SECRET
+      ? "Loaded"
+      : "Missing"
+  );
+} else {
+  console.log(
+    "✅ Cloudinary configuration loaded successfully."
+  );
+}
+
+
+// ======================================
+// UPLOAD TO CLOUDINARY
+// ======================================
 
 const uploadToCloudinary = async (
   filePath,
   folder = "docyard/documents"
 ) => {
   try {
-    const result = await cloudinary.uploader.upload(
-      filePath,
-      {
-        folder,
-        resource_type: "raw",
-      }
-    );
+    const result =
+      await cloudinary.uploader.upload(
+        filePath,
+        {
+          folder,
+          resource_type: "raw",
+        }
+      );
 
     return result;
+
   } catch (error) {
     console.error(
-      "Cloudinary Upload Error:",
+      "❌ Cloudinary Upload Error:",
       error
     );
 
@@ -37,6 +87,9 @@ const uploadToCloudinary = async (
 };
 
 
+// ======================================
+// DELETE FROM CLOUDINARY
+// ======================================
 
 const deleteFromCloudinary = async (
   publicId,
@@ -52,9 +105,10 @@ const deleteFromCloudinary = async (
       );
 
     return result;
+
   } catch (error) {
     console.error(
-      "Cloudinary Delete Error:",
+      "❌ Cloudinary Delete Error:",
       error
     );
 
@@ -65,6 +119,9 @@ const deleteFromCloudinary = async (
 };
 
 
+// ======================================
+// EXPORTS
+// ======================================
 
 export {
   cloudinary,

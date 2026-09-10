@@ -15,15 +15,9 @@ import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
-router.get(
-  "/",
-  getAllDocuments
-);
+router.get("/", getAllDocuments);
 
-router.get(
-  "/slug/:slug",
-  getDocumentBySlug
-);
+router.get("/slug/:slug", getDocumentBySlug);
 
 router.get(
   "/my",
