@@ -21,11 +21,13 @@ router.use(
   adminMiddleware
 );
 
+// Dashboard
 router.get(
   "/dashboard",
   getAdminDashboard
 );
 
+// Users
 router.get(
   "/users",
   getAllUsers
@@ -46,6 +48,7 @@ router.delete(
   deleteUser
 );
 
+// Documents
 router.get(
   "/documents",
   getAllDocumentsAdmin
@@ -56,6 +59,7 @@ router.delete(
   adminDeleteDocument
 );
 
+// Contacts
 router.get(
   "/contacts/statistics",
   getContactStatistics
