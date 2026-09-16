@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   registerUser,
+  verifyRegistrationOTP,
   loginUser,
   logoutUser,
   refreshAccessToken,
@@ -18,6 +19,11 @@ const router = Router();
 router.post(
   "/register",
   registerUser
+);
+
+router.post(
+  "/verify-registration-otp",
+  verifyRegistrationOTP
 );
 
 router.post(
