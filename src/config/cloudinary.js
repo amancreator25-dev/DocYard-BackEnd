@@ -15,46 +15,6 @@ cloudinary.config({
 
 
 // ======================================
-// CHECK CONFIGURATION
-// ======================================
-
-if (
-  !process.env.CLOUDINARY_CLOUD_NAME ||
-  !process.env.CLOUDINARY_API_KEY ||
-  !process.env.CLOUDINARY_API_SECRET
-) {
-  console.error(
-    "❌ Cloudinary environment variables are missing."
-  );
-
-  console.error(
-    "CLOUDINARY_CLOUD_NAME:",
-    process.env.CLOUDINARY_CLOUD_NAME
-      ? "Loaded"
-      : "Missing"
-  );
-
-  console.error(
-    "CLOUDINARY_API_KEY:",
-    process.env.CLOUDINARY_API_KEY
-      ? "Loaded"
-      : "Missing"
-  );
-
-  console.error(
-    "CLOUDINARY_API_SECRET:",
-    process.env.CLOUDINARY_API_SECRET
-      ? "Loaded"
-      : "Missing"
-  );
-} else {
-  console.log(
-    "✅ Cloudinary configuration loaded successfully."
-  );
-}
-
-
-// ======================================
 // UPLOAD TO CLOUDINARY
 // ======================================
 

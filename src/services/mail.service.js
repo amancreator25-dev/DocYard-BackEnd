@@ -28,8 +28,6 @@ const sendEmail = async ({
       html,
     });
 
-    console.log("EMAIL SENT:", info.messageId);
-
     return info;
   } catch (error) {
     console.error("=================================");
