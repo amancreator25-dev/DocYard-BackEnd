@@ -1,4 +1,6 @@
+import "dotenv/config";
 import nodemailer from "nodemailer";
+
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -17,19 +19,39 @@ const sendEmail = async ({
   text,
   html,
 }) => {
-  return await transporter.sendMail({
-    from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
-    to,
-    subject,
-    text,
-    html,
-  });
+  try {
+    const info = await transporter.sendMail({
+      from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
+      to,
+      subject,
+      text,
+      html,
+    });
+
+    console.log("EMAIL SENT:", info.messageId);
+
+    return info;
+  } catch (error) {
+    console.error("=================================");
+    console.error("EMAIL SEND FAILED");
+    console.error("Message:", error.message);
+    console.error("Code:", error.code);
+    console.error("Response:", error.response);
+    console.error("Response Code:", error.responseCode);
+    console.error("=================================");
+
+    throw error;
+  }
 };
 
 const verifyEmailConnection = async () => {
-  await transporter.verify();
-
-  console.log("SMTP server is ready.");
+  try {
+    await transporter.verify();
+    console.log("SMTP server is ready.");
+  } catch (error) {
+    console.error("SMTP CONNECTION FAILED:", error.message);
+    throw error;
+  }
 };
 
 export {

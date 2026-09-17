@@ -1,10 +1,9 @@
-import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
 import { User } from "../models/user.model.js";
-import { OTP } from "../models/otp.model.js";
+import { PendingRegistration } from "../models/pendingRegistration.model.js";
 import { Document } from "../models/document.model.js";
 
 import { sendEmail } from "../services/mail.service.js";
@@ -12,7 +11,6 @@ import { sendEmail } from "../services/mail.service.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
-
 
 // ======================================
 // GENERATE TOKENS
@@ -40,7 +38,6 @@ const generateTokens = async (userId) => {
   };
 };
 
-
 // ======================================
 // COOKIE OPTIONS
 // ======================================
@@ -50,7 +47,6 @@ const cookieOptions = {
   secure: process.env.NODE_ENV === "production",
   sameSite: "strict",
 };
-
 
 // ======================================
 // REGISTER USER
@@ -88,53 +84,60 @@ const registerUser = asyncHandler(async (req, res) => {
     );
   }
 
-  // Generate 6-digit OTP
-  const otp = crypto.randomInt(100000, 1000000).toString();
+  const otp = crypto
+    .randomInt(100000, 1000000)
+    .toString();
 
-  // Hash OTP
   const otpHash = await bcrypt.hash(otp, 10);
 
-  // OTP expires in 10 minutes
+  const hashedPassword = await bcrypt.hash(
+    password,
+    10
+  );
+
   const expiresAt = new Date(
     Date.now() + 10 * 60 * 1000
   );
 
-  // Create unverified user
-  const user = await User.create({
-    username: normalizedUsername,
-    fullname: fullname.trim(),
-    email: normalizedEmail,
-    password,
-    isVerified: false,
-  });
-
   try {
-    // Remove any previous registration OTP
-    await OTP.deleteMany({
-      email: normalizedEmail,
-      purpose: "register",
+    await PendingRegistration.deleteMany({
+      $or: [
+        { email: normalizedEmail },
+        { username: normalizedUsername },
+      ],
     });
 
-    // Save OTP
-    await OTP.create({
+    await PendingRegistration.create({
+      fullname: fullname.trim(),
+      username: normalizedUsername,
       email: normalizedEmail,
+      password: hashedPassword,
       otpHash,
-      purpose: "register",
       attempts: 0,
       expiresAt,
     });
 
-    // Send OTP email
     await sendEmail({
       to: normalizedEmail,
       subject: "Verify your DocYard account",
+
       text: `Your DocYard verification code is ${otp}. This code expires in 10 minutes.`,
+
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 30px;">
-          <h2 style="margin-bottom: 10px;">Welcome to DocYard</h2>
+        <div style="
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: auto;
+          padding: 30px;
+        ">
+
+          <h2 style="margin-bottom: 10px;">
+            Welcome to DocYard
+          </h2>
 
           <p>
-            Use the verification code below to verify your email address.
+            Use the verification code below to verify
+            your email address.
           </p>
 
           <div style="
@@ -150,24 +153,27 @@ const registerUser = asyncHandler(async (req, res) => {
           </div>
 
           <p>
-            This code expires in <strong>10 minutes</strong>.
+            This code expires in
+            <strong>10 minutes</strong>.
           </p>
 
           <p style="color: #666;">
-            If you did not create a DocYard account, you can ignore this email.
+            If you did not create a DocYard account,
+            you can ignore this email.
           </p>
+
         </div>
       `,
     });
-
   } catch (error) {
-    // Cleanup if email sending fails
-    await OTP.deleteMany({
-      email: normalizedEmail,
-      purpose: "register",
-    });
+    console.error(
+      "EMAIL SENDING ERROR:",
+      error
+    );
 
-    await User.findByIdAndDelete(user._id);
+    await PendingRegistration.deleteMany({
+      email: normalizedEmail,
+    });
 
     throw new ApiError(
       500,
@@ -185,7 +191,6 @@ const registerUser = asyncHandler(async (req, res) => {
     )
   );
 });
-
 
 // ======================================
 // VERIFY REGISTRATION OTP
@@ -205,39 +210,23 @@ const verifyRegistrationOTP = asyncHandler(
     const normalizedEmail =
       email.trim().toLowerCase();
 
-    const user = await User.findOne({
-      email: normalizedEmail,
-    });
+    const pendingRegistration =
+      await PendingRegistration.findOne({
+        email: normalizedEmail,
+      });
 
-    if (!user) {
+    if (!pendingRegistration) {
       throw new ApiError(
         404,
-        "User not found"
+        "Registration not found or expired"
       );
     }
 
-    if (user.isVerified) {
-      throw new ApiError(
-        400,
-        "Email is already verified"
-      );
-    }
-
-    const otpRecord = await OTP.findOne({
-      email: normalizedEmail,
-      purpose: "register",
-    });
-
-    if (!otpRecord) {
-      throw new ApiError(
-        400,
-        "OTP is invalid or expired"
-      );
-    }
-
-    if (otpRecord.expiresAt < new Date()) {
-      await OTP.deleteOne({
-        _id: otpRecord._id,
+    if (
+      pendingRegistration.expiresAt < new Date()
+    ) {
+      await PendingRegistration.deleteOne({
+        _id: pendingRegistration._id,
       });
 
       throw new ApiError(
@@ -246,25 +235,26 @@ const verifyRegistrationOTP = asyncHandler(
       );
     }
 
-    if (otpRecord.attempts >= 5) {
-      await OTP.deleteOne({
-        _id: otpRecord._id,
+    if (pendingRegistration.attempts >= 5) {
+      await PendingRegistration.deleteOne({
+        _id: pendingRegistration._id,
       });
 
       throw new ApiError(
         429,
-        "Too many incorrect attempts. Please request a new OTP."
+        "Too many incorrect attempts. Please register again."
       );
     }
 
     const isCorrect = await bcrypt.compare(
       otp.toString(),
-      otpRecord.otpHash
+      pendingRegistration.otpHash
     );
 
     if (!isCorrect) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
+      pendingRegistration.attempts += 1;
+
+      await pendingRegistration.save();
 
       throw new ApiError(
         400,
@@ -272,12 +262,38 @@ const verifyRegistrationOTP = asyncHandler(
       );
     }
 
-    user.isVerified = true;
+    const existingUser = await User.findOne({
+      $or: [
+        {
+          email: pendingRegistration.email,
+        },
+        {
+          username: pendingRegistration.username,
+        },
+      ],
+    });
 
-    await user.save();
+    if (existingUser) {
+      await PendingRegistration.deleteOne({
+        _id: pendingRegistration._id,
+      });
 
-    await OTP.deleteOne({
-      _id: otpRecord._id,
+      throw new ApiError(
+        409,
+        "User with this email or username already exists"
+      );
+    }
+
+    const user = await User.create({
+      fullname: pendingRegistration.fullname,
+      username: pendingRegistration.username,
+      email: pendingRegistration.email,
+      password: pendingRegistration.password,
+      isVerified: true,
+    });
+
+    await PendingRegistration.deleteOne({
+      _id: pendingRegistration._id,
     });
 
     return res.status(200).json(
@@ -293,13 +309,15 @@ const verifyRegistrationOTP = asyncHandler(
   }
 );
 
-
 // ======================================
 // LOGIN USER
 // ======================================
 
 const loginUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const {
+    email,
+    password,
+  } = req.body;
 
   if (!email || !password) {
     throw new ApiError(
@@ -378,7 +396,6 @@ const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
-
 // ======================================
 // LOGOUT USER
 // ======================================
@@ -414,7 +431,6 @@ const logoutUser = asyncHandler(async (req, res) => {
       )
     );
 });
-
 
 // ======================================
 // REFRESH ACCESS TOKEN
@@ -504,7 +520,6 @@ const refreshAccessToken = asyncHandler(
   }
 );
 
-
 // ======================================
 // GET CURRENT USER
 // ======================================
@@ -528,13 +543,14 @@ const getCurrentUser = asyncHandler(
     return res.status(200).json(
       new ApiResponse(
         200,
-        { user },
+        {
+          user,
+        },
         "Current user fetched successfully"
       )
     );
   }
 );
-
 
 // ======================================
 // CHANGE PASSWORD
@@ -602,7 +618,6 @@ const changePassword = asyncHandler(
       );
   }
 );
-
 
 // ======================================
 // UPDATE PROFILE
@@ -690,7 +705,6 @@ const updateProfile = asyncHandler(
   }
 );
 
-
 // ======================================
 // GET PUBLIC USER PROFILE
 // ======================================
@@ -739,6 +753,9 @@ const getUserProfile = asyncHandler(
   }
 );
 
+// ======================================
+// EXPORTS
+// ======================================
 
 export {
   registerUser,

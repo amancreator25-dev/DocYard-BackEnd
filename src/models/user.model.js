@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -87,16 +86,16 @@ userSchema.pre("save", async function () {
     return;
   }
 
+  // Password is already hashed when coming from PendingRegistration
+  if (this.password.startsWith("$2")) {
+    return;
+  }
+
   this.password = await bcrypt.hash(this.password, 10);
 });
 
-userSchema.methods.isPasswordCorrect = async function (
-  password
-) {
-  return await bcrypt.compare(
-    password,
-    this.password
-  );
+userSchema.methods.isPasswordCorrect = async function (password) {
+  return await bcrypt.compare(password, this.password);
 };
 
 userSchema.methods.generateAccessToken = function () {
@@ -126,7 +125,4 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
-export const User = mongoose.model(
-  "User",
-  userSchema
-);
+export const User = mongoose.model("User", userSchema);
