@@ -1,15 +1,375 @@
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
+
 import { User } from "../models/user.model.js";
 import { Document } from "../models/document.model.js";
 import { Like } from "../models/like.model.js";
 import { Bookmark } from "../models/bookmark.model.js";
 import { Comment } from "../models/comment.model.js";
 import { Contact } from "../models/contact.model.js";
+import { OTP } from "../models/otp.model.js";
 
 import { deleteFromCloudinary } from "../config/cloudinary.js";
+import { sendEmail } from "../services/mail.service.js";
 
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
+
+// ======================================
+// ADMIN LOGIN OTP
+// ======================================
+
+const sendAdminLoginOTP = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    throw new ApiError(
+      400,
+      "Email and password are required"
+    );
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const user = await User.findOne({
+    email: normalizedEmail,
+  }).select("+password");
+
+  if (!user) {
+    throw new ApiError(
+      401,
+      "Invalid email or password"
+    );
+  }
+
+  if (!user.isVerified) {
+    throw new ApiError(
+      403,
+      "Please verify your email before logging in"
+    );
+  }
+
+  if (user.role !== "admin") {
+    throw new ApiError(
+      403,
+      "Admin access required"
+    );
+  }
+
+  const isPasswordCorrect =
+    await user.isPasswordCorrect(password);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(
+      401,
+      "Invalid email or password"
+    );
+  }
+
+  const otp = crypto
+    .randomInt(100000, 1000000)
+    .toString();
+
+  const otpHash = await bcrypt.hash(otp, 10);
+
+  const expiresAt = new Date(
+    Date.now() + 10 * 60 * 1000
+  );
+
+  await OTP.deleteMany({
+    email: normalizedEmail,
+    purpose: "admin-login",
+  });
+
+  await OTP.create({
+    email: normalizedEmail,
+    otpHash,
+    purpose: "admin-login",
+    attempts: 0,
+    expiresAt,
+  });
+
+  const adminLoginToken = jwt.sign(
+    {
+      _id: user._id,
+      email: user.email,
+      purpose: "admin-login",
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {
+      expiresIn: "10m",
+    }
+  );
+
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Your DocYard admin verification code",
+
+      text: `Your DocYard admin verification code is ${otp}. This code expires in 10 minutes.`,
+
+      html: `
+        <div style="
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: auto;
+          padding: 30px;
+        ">
+
+          <h2>DocYard Admin Verification</h2>
+
+          <p>
+            Use the verification code below to access
+            the DocYard administrator area.
+          </p>
+
+          <div style="
+            margin: 25px 0;
+            padding: 18px;
+            background: #f5f5f5;
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+          ">
+            ${otp}
+          </div>
+
+          <p>
+            This code expires in
+            <strong>10 minutes</strong>.
+          </p>
+
+          <p style="color:#666;">
+            If you did not attempt to access the
+            DocYard admin area, you can ignore this email.
+          </p>
+
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error(
+      "ADMIN OTP EMAIL ERROR:",
+      error
+    );
+
+    await OTP.deleteMany({
+      email: normalizedEmail,
+      purpose: "admin-login",
+    });
+
+    throw new ApiError(
+      500,
+      "Unable to send admin verification email. Please try again."
+    );
+  }
+
+  return res
+    .status(200)
+    .cookie(
+      "adminLoginToken",
+      adminLoginToken,
+      {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 10 * 60 * 1000,
+      }
+    )
+    .json(
+      new ApiResponse(
+        200,
+        {
+          requiresAdminOTP: true,
+          email: normalizedEmail,
+        },
+        "Admin verification OTP sent successfully"
+      )
+    );
+});
+
+// ======================================
+// VERIFY ADMIN OTP
+// ======================================
+
+const verifyAdminOTP = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    throw new ApiError(
+      400,
+      "Email and OTP are required"
+    );
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const adminLoginToken =
+    req.cookies?.adminLoginToken;
+
+  if (!adminLoginToken) {
+    throw new ApiError(
+      401,
+      "Admin login session expired. Please login again."
+    );
+  }
+
+  let decodedToken;
+
+  try {
+    decodedToken = jwt.verify(
+      adminLoginToken,
+      process.env.ACCESS_TOKEN_SECRET
+    );
+  } catch {
+    throw new ApiError(
+      401,
+      "Admin login session expired. Please login again."
+    );
+  }
+
+  if (
+    decodedToken?.purpose !== "admin-login" ||
+    !decodedToken?._id
+  ) {
+    throw new ApiError(
+      401,
+      "Invalid admin login session"
+    );
+  }
+
+  const user = await User.findById(
+    decodedToken._id
+  ).select("+refreshToken");
+
+  if (!user) {
+    throw new ApiError(
+      404,
+      "User not found"
+    );
+  }
+
+  if (user.email !== normalizedEmail) {
+    throw new ApiError(
+      401,
+      "Invalid admin login session"
+    );
+  }
+
+  if (user.role !== "admin") {
+    throw new ApiError(
+      403,
+      "Admin access required"
+    );
+  }
+
+  const otpRecord = await OTP.findOne({
+    email: normalizedEmail,
+    purpose: "admin-login",
+  });
+
+  if (!otpRecord) {
+    throw new ApiError(
+      400,
+      "OTP is invalid or expired"
+    );
+  }
+
+  if (otpRecord.expiresAt < new Date()) {
+    await OTP.deleteOne({
+      _id: otpRecord._id,
+    });
+
+    throw new ApiError(
+      400,
+      "OTP has expired"
+    );
+  }
+
+  if (otpRecord.attempts >= 5) {
+    await OTP.deleteOne({
+      _id: otpRecord._id,
+    });
+
+    throw new ApiError(
+      429,
+      "Too many incorrect attempts. Please login again."
+    );
+  }
+
+  const isCorrect = await bcrypt.compare(
+    otp.toString(),
+    otpRecord.otpHash
+  );
+
+  if (!isCorrect) {
+    otpRecord.attempts += 1;
+
+    await otpRecord.save();
+
+    throw new ApiError(
+      400,
+      "Invalid OTP"
+    );
+  }
+
+  const accessToken =
+    user.generateAccessToken();
+
+  const refreshToken =
+    user.generateRefreshToken();
+
+  user.refreshToken = refreshToken;
+  user.lastLogin = new Date();
+
+  await user.save({
+    validateBeforeSave: false,
+  });
+
+  await OTP.deleteOne({
+    _id: otpRecord._id,
+  });
+
+  const loggedInUser =
+    await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+
+  return res
+    .status(200)
+    .clearCookie(
+      "adminLoginToken",
+      cookieOptions
+    )
+    .cookie(
+      "accessToken",
+      accessToken,
+      cookieOptions
+    )
+    .cookie(
+      "refreshToken",
+      refreshToken,
+      cookieOptions
+    )
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+        },
+        "Admin login successful"
+      )
+    );
+});
 
 // ======================================
 // ADMIN DASHBOARD
@@ -351,6 +711,9 @@ const getContactStatistics = asyncHandler(
 );
 
 export {
+  sendAdminLoginOTP,
+  verifyAdminOTP,
+
   getAdminDashboard,
   getAllUsers,
   getUserById,

@@ -1,6 +1,8 @@
 import { Router } from "express";
 
 import {
+  sendAdminLoginOTP,
+  verifyAdminOTP,
   getAdminDashboard,
   getAllUsers,
   getUserById,
@@ -16,18 +18,45 @@ import { adminMiddleware } from "../middlewares/admin.middleware.js";
 
 const router = Router();
 
+// ======================================
+// ADMIN LOGIN OTP
+// ======================================
+
+// These routes must be accessible before
+// admin authentication is established.
+
+router.post(
+  "/login",
+  sendAdminLoginOTP
+);
+
+router.post(
+  "/verify-admin-otp",
+  verifyAdminOTP
+);
+
+// ======================================
+// PROTECTED ADMIN ROUTES
+// ======================================
+
 router.use(
   authMiddleware,
   adminMiddleware
 );
 
-// Dashboard
+// ======================================
+// DASHBOARD
+// ======================================
+
 router.get(
   "/dashboard",
   getAdminDashboard
 );
 
-// Users
+// ======================================
+// USERS
+// ======================================
+
 router.get(
   "/users",
   getAllUsers
@@ -48,7 +77,10 @@ router.delete(
   deleteUser
 );
 
-// Documents
+// ======================================
+// DOCUMENTS
+// ======================================
+
 router.get(
   "/documents",
   getAllDocumentsAdmin
@@ -59,7 +91,10 @@ router.delete(
   adminDeleteDocument
 );
 
-// Contacts
+// ======================================
+// CONTACTS
+// ======================================
+
 router.get(
   "/contacts/statistics",
   getContactStatistics
