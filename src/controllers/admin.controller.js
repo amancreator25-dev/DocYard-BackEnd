@@ -175,7 +175,10 @@ const sendAdminLoginOTP = asyncHandler(async (req, res) => {
       {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite:
+          process.env.NODE_ENV === "production"
+            ? "none"
+            : "lax",
         maxAge: 10 * 60 * 1000,
       }
     )
