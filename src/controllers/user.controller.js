@@ -45,7 +45,10 @@ const generateTokens = async (userId) => {
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
+  sameSite:
+    process.env.NODE_ENV === "production"
+      ? "none"
+      : "lax",
 };
 
 // ======================================
