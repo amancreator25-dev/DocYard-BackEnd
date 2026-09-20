@@ -342,9 +342,12 @@ const verifyAdminOTP = asyncHandler(async (req, res) => {
     );
 
   const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite:
+    process.env.NODE_ENV === "production"
+      ? "none"
+      : "lax",
   };
 
   return res
