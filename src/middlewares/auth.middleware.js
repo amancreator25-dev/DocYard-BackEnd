@@ -27,18 +27,14 @@ const authMiddleware = asyncHandler(
         process.env.ACCESS_TOKEN_SECRET
       );
     } catch (error) {
-      if (
-        error.name === "TokenExpiredError"
-      ) {
-        throw new ApiError(
-          401,
-          "Access token has expired"
-        );
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({
+          success: false,
+          message: "Access token has expired",
+        });
       }
 
-      if (
-        error.name === "JsonWebTokenError"
-      ) {
+      if (error.name === "JsonWebTokenError") {
         throw new ApiError(
           401,
           "Invalid access token"
@@ -51,12 +47,11 @@ const authMiddleware = asyncHandler(
       );
     }
 
-    const user =
-      await User.findById(
-        decodedToken._id
-      ).select(
-        "-password -refreshToken"
-      );
+    const user = await User.findById(
+      decodedToken._id
+    ).select(
+      "-password -refreshToken"
+    );
 
     if (!user) {
       throw new ApiError(
