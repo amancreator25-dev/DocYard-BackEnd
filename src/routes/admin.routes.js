@@ -35,27 +35,19 @@ router.post(
   verifyAdminOTP
 );
 
-// ======================================
-// PROTECTED ADMIN ROUTES
-// ======================================
 
 router.use(
   authMiddleware,
   adminMiddleware
 );
 
-// ======================================
-// DASHBOARD
-// ======================================
+
 
 router.get(
   "/dashboard",
   getAdminDashboard
 );
 
-// ======================================
-// USERS
-// ======================================
 
 router.get(
   "/users",
@@ -77,9 +69,6 @@ router.delete(
   deleteUser
 );
 
-// ======================================
-// DOCUMENTS
-// ======================================
 
 router.get(
   "/documents",
@@ -91,9 +80,7 @@ router.delete(
   adminDeleteDocument
 );
 
-// ======================================
-// CONTACTS
-// ======================================
+
 
 router.get(
   "/contacts/statistics",

@@ -21,9 +21,7 @@ import { authMiddleware } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-// ======================================
-// REGISTRATION
-// ======================================
+
 
 router.post(
   "/register",
@@ -35,9 +33,7 @@ router.post(
   verifyRegistrationOTP
 );
 
-// ======================================
-// FORGOT PASSWORD
-// ======================================
+
 
 router.post(
   "/forgot-password",
@@ -54,9 +50,7 @@ router.post(
   resetPassword
 );
 
-// ======================================
-// LOGIN
-// ======================================
+
 
 router.post(
   "/login",
@@ -68,18 +62,14 @@ router.post(
   refreshAccessToken
 );
 
-// ======================================
-// PUBLIC PROFILE
-// ======================================
+
 
 router.get(
   "/profile/:username",
   getUserProfile
 );
 
-// ======================================
-// AUTHENTICATED ROUTES
-// ======================================
+
 
 router.post(
   "/logout",
