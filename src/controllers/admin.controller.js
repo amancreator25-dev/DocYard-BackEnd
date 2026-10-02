@@ -619,9 +619,6 @@ const getAllDocumentsAdmin = asyncHandler(
   }
 );
 
-// ======================================
-// DELETE DOCUMENT BY ADMIN
-// ======================================
 
 const adminDeleteDocument = asyncHandler(
   async (req, res) => {

@@ -12,9 +12,6 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
-// ======================================
-// GENERATE TOKENS
-// ======================================
 
 const generateTokens = async (userId) => {
   const user = await User.findById(userId);
