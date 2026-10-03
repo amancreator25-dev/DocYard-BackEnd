@@ -465,9 +465,6 @@ const sendForgotPasswordOTP = asyncHandler(
   }
 );
 
-// ======================================
-// VERIFY FORGOT PASSWORD OTP
-// ======================================
 
 const verifyForgotPasswordOTP =
   asyncHandler(async (req, res) => {
