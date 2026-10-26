@@ -86,7 +86,6 @@ userSchema.pre("save", async function () {
     return;
   }
 
-  // Password is already hashed when coming from PendingRegistration
   if (this.password.startsWith("$2")) {
     return;
   }
